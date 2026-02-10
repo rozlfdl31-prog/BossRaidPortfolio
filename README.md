@@ -37,7 +37,7 @@
 
 ## 🛠️ Stack & Tools
 
-*   **Engine**: Unity 6 (6000.0.x)
+*   **Engine**: Unity 2022 (2022.3.62f3)
 *   **Language**: C# (Style Guide 준수)
 *   **Version Control**: Git (Git Flow 전략 사용 - [전략 문서](docs/Git_Branching_Strategy.md))
 *   **Documentation**: Markdown, Mermaid JS (Class Diagrams)
