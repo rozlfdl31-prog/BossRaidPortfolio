@@ -23,8 +23,23 @@ namespace Core.Player.States
             // 쿨타임 시작
             _dashContext.StartDashCooldown();
 
-            // 진입 시 캐릭터 전방으로 대시 방향 고정
-            _dashDirection = _dashContext.transform.forward;
+            // 진입 시 입력 방향으로 대시 (없으면 전방)
+            Vector3 inputDir = Vector3.zero;
+            if (Controller.InputProvider != null)
+            {
+                var input = Controller.InputProvider.GetInput();
+                inputDir = Controller.GetMovementDirection(input.moveDir);
+            }
+
+            if (inputDir != Vector3.zero)
+            {
+                _dashDirection = inputDir;
+                Controller.transform.rotation = Quaternion.LookRotation(_dashDirection);
+            }
+            else
+            {
+                _dashDirection = Controller.transform.forward;
+            }
 
             // Animation: Play Dash (Quickshift_F)
             if (Controller.Animator != null)

@@ -62,6 +62,7 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable
     public float RotationSpeed => rotationSpeed;
     public float Gravity => gravity;
     public Transform CameraRoot => cameraRoot;
+    public IInputProvider InputProvider => _inputProvider;
     public PlayerVisual Visual => playerVisual;
     public Animator Animator => playerVisual?.Animator;
     public CharacterController CharController => _characterController;
@@ -125,6 +126,22 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable
 
         // Controller에서 직접 Update 호출
         _stateMachine.CurrentState?.Update(input);
+    }
+
+    /// <summary>
+    /// 입력 벡터를 카메라 기준으로 변환하여 이동 방향 계산
+    /// </summary>
+    public Vector3 GetMovementDirection(Vector2 inputDir)
+    {
+        Vector3 camForward = cameraRoot.forward;
+        camForward.y = 0;
+        camForward.Normalize();
+
+        Vector3 camRight = cameraRoot.right;
+        camRight.y = 0;
+        camRight.Normalize();
+
+        return (camForward * inputDir.y + camRight * inputDir.x).normalized;
     }
 
     private void HandleDamage(int damage)

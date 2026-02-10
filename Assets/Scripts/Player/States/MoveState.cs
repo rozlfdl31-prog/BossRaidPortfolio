@@ -70,23 +70,12 @@ namespace Core.Player.States
         private void UpdateRotation(PlayerInputPacket input)
         {
             // 카메라 방향 기준 캐릭터 회전
-            Transform cameraRoot = Controller.CameraRoot;
-            Transform playerTransform = Controller.transform;
-
-            Vector3 camForward = cameraRoot.forward;
-            camForward.y = 0;
-            camForward.Normalize();
-
-            Vector3 camRight = cameraRoot.right;
-            camRight.y = 0;
-            camRight.Normalize();
-
-            Vector3 moveDirection = (camForward * input.moveDir.y + camRight * input.moveDir.x).normalized;
+            Vector3 moveDirection = Controller.GetMovementDirection(input.moveDir);
 
             if (moveDirection != Vector3.zero)
             {
                 Quaternion targetRotation = Quaternion.LookRotation(moveDirection);
-                playerTransform.rotation = Quaternion.Slerp(playerTransform.rotation, targetRotation, Controller.RotationSpeed * Time.deltaTime);
+                Controller.transform.rotation = Quaternion.Slerp(Controller.transform.rotation, targetRotation, Controller.RotationSpeed * Time.deltaTime);
             }
 
             // Calc Velocity
