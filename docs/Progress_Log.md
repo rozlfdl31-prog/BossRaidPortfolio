@@ -198,6 +198,70 @@
     *   **Coroutine Cleanup**: 사망 시 `StopAllCoroutines()`로 잔존 코루틴이 죽은 객체에 부작용을 일으키는 것을 방지.
     *   **Namespace Strategy**: `Core` 네임스페이스로 물리적 위치(폴더)와 논리적 위치(네임스페이스)를 일치시켜 유지보수성 향상.
 
+---
+
+### **2026-02-11 (수): Dragon Asset Migration & Strategy Pattern 확장**
+
+*   **작업 내용**
+
+    **Asset Migration (Cube → Dragon)**
+    *   기존 Cube 보스를 드래곤 모델로 전면 교체.
+    *   Unity Animator에 Blend Tree 구축: Idle/Walk 모션 혼합, Threshold 수동 설정 `0`(Idle), `3.5`(Walk).
+    *   `CharacterController` Radius/Height(1/1) 조정으로 공중 부양(Floating) 이슈 해결.
+    *   플레이어와 동일한 중력(`Physics.gravity`) 로직 적용.
+
+    **Strategy Pattern 확장 (ClawAttackPattern)**
+    *   `IBossAttackPattern`을 구현한 `ClawAttackPattern` 신규 추가.
+    *   로직: 타겟 회전 → Claw Attack 애니메이션 → Hitbox 활성화(데미지 1.5배) → 돌진(Rush) → 정지.
+    *   **OCP 입증**: `BasicAttackPattern`에 이어 2번째 패턴을 추가했지만, `BossAttackState.cs`는 **단 한 줄도 수정하지 않음**.
+    *   블로그: [🧠 OCP를 지키는 보스 패턴 설계](file:///d:/Unity-projects/BossRaidPortfolio/docs/blog/0211_Boss_Pattern_Design.md)
+
+    **Compound Collider & 피격 구조**
+    *   이동용 `CharacterController`와 피격용 `CapsuleCollider`(Head, Body, Tail — Bone 부착) 역할 분리.
+    *   `BossHitBox` → `Health` 중계 구조: 드래곤의 각 부위 콜라이더가 본체 HP로 데미지 위임.
+    *   `DamageCaster` 중복 피격 방지: Owner `InstanceID` 추적으로 단일 프레임 다중 히트 무시.
+    *   블로그: [⚡ 화려한 드래곤 뒤에 숨겨진 최적화 기술](file:///d:/Unity-projects/BossRaidPortfolio/docs/blog/0211_Physics_Optimization.md)
+
+    **Feature Toggles & 디버그 도구**
+    *   `enableChase`, `enableRotation`, `enableBasicAttack`, `enableClawAttack` 등 기능별 On/Off 인스펙터 토글 추가.
+    *   Raycast 시각화(Gizmo) 색상 변경으로 디버깅 효율 향상.
+
+*   **기술적 포인트 (Senior's Review)**
+    *   **Asset Migration Strategy**: 단순 모델 교체가 아닌, 물리(Controller)와 피격(Collider)을 분리하여 유지보수성 확보. 드래곤을 다른 모델로 바꿔도 콜라이더 구조만 재배치하면 됨.
+    *   **Compound Collider vs Mesh Collider**: Mesh Collider의 오버헤드를 피하고, Bone을 따라가는 Primitive Collider 조합으로 성능 최적화.
+    *   **Strategy Pattern → OCP**: 새 공격 패턴 100개를 추가해도 `BossAttackState` 코드는 수정 불필요. 기획자의 요청이 들어올 때마다 패턴 클래스만 추가하면 되는 구조.
+    *   **NonAlloc API**: `OverlapSphereNonAlloc` + 사전 할당 배열로 GC Spike 원천 차단. 네트워크 동기화 시에도 프레임당 메모리 할당 0 유지.
+
+---
+
+### **2026-02-12 (목): Documentation Sync & Boss Pattern Polishing**
+
+*   **작업 내용**
+    *   **System_Blueprint 정합성 검증**: 3개 다이어그램(Player, Boss AI, Attack Strategy)을 실제 코드와 대조하여 **6건의 불일치** 발견 및 수정 완료.
+        *   `BossVisual` 메서드 교정, `BossHitBox` 클래스 추가, `Health` 이벤트 반영, `DamageCaster.DisableHitbox()` 추가 등.
+    *   **문서화 부채 전수 점검**: 6개 기술 문서를 2/11 작업 결과와 대조. Medium 4건·Low 2건 부채 발견 후 5건 수정.
+        *   `Boss_Algorithm_Design.md`: 제목 변경, §8 Compound Collider 피격 구조, §9 Feature Toggle 추가.
+        *   `Animator_Setup_Guide.md`: §5 Boss Dragon Animator 설정 추가.
+        *   `Animation_Implementation_Log.md`: §6 Boss 애니메이션 구현 기록 추가.
+    *   **Hitbox Synchronization (Bone-Synced Hierarchy)**:
+        *   **Basic Attack**: Head Bone 자식에 `DamageCasterPlace` 오브젝트를 생성하여 `DamageCaster`와 연결, 애니메이션에 따라 판정 위치 자동 동기화.
+        *   **Claw Attack**: 보스의 `Head`, `Body`, `Tail` 피격 콜라이더를 모델의 본(Bone) 하위 계층으로 이동하여, 도약 공격 시 몸체와 판정 범위가 정확히 일치하도록 개선.
+        *   **Refactoring**: `DamageCaster`를 배열 대신 명시적 필드(`HeadDamageCaster`, `ClawDamageCaster`)로 분리하여 코드 가독성 향상.
+    *   **Claw Attack Polishing**:
+        *   **Animation State Fix**: Animator State 이름 불일치로 인한 전환 실패 문제 해결 및 `CrossFade` 안정성 확보.
+        *   **Partial Animation Logic**: `exitPhaseRatio`(0.5)를 도입하여 공격 애니메이션의 도약(Rush) 부분만 재생 후 즉시 복귀, 복귀 모션을 생략하여 타격감 개선.
+        *   **MoveRaw() 메서드**: 공격 중 이동 시 `PlayMove`(Walk 애니메이션)가 호출되어 공격 모션을 덮어씌우는 문제를 해결하기 위해, 애니메이션 간섭 없는 순수 물리 이동 메서드 구현.
+
+*   **기술적 포인트 (Senior's Review)**
+    *   **Bone-Synced Hitbox**: `DamageCaster._castCenter`를 애니메이션이 움직이는 Bone 자식 Transform으로 설정하면, `OverlapSphereNonAlloc`의 원점이 매 `FixedUpdate`마다 Bone 위치를 자동 추적. 코드 수정 없이 물리 판정과 애니메이션 동기화 달성.
+    *   **Animation-Driven Logic Control**: 애니메이션의 특정 시점(Normalized Time)을 로직의 트리거로 사용하여, 비주얼과 로직의 완벽한 동기화 구현. (0.3까지 돌진, 0.5에서 조기 종료)
+    *   **Separation of Move & Animate**: `MoveTo`(이동+애니)와 `MoveRaw`(이동만)를 분리하여, 상황에 맞는 이동 방식 선택 가능. FSM의 유연성 확보.
+    *   **SoC(관심사 분리) 준수**: `BossHitBox`(피격 수신)에 공격 로직을 합치려는 시도를 배제하고, `DamageCaster`(공격 발신) 컴포넌트를 별도 유지하여 Hurtbox/Hitbox 책임 분리 원칙 준수.
+
+*   **기술적 고민**
+    *   **Animation Event vs Code Timer**: 애니메이션 이벤트를 심는 방식은 직관적이나 클립 교체 시 재작업 필요. 코드로 `normalizedTime`을 체크하는 방식은 클립이 바뀌어도 비율(%)로 동작하므로 유지보수에 더 유리하다고 판단.
+
+
 ## 📈 2월 마일스톤: 싱글플레이 로직 완성 (Capsule vs Cube)
 
 > **목표**: 클라이언트 구축
@@ -253,34 +317,9 @@
 - [ ] **(플레이어)대쉬 방향 수정**: 공격 방향이 아닌 키보드 입력 방향으로 대쉬.
 - [ ] **피격 플래시 이펙트**: `BaseVisual.FlashRoutine`을 Emission 기반으로 변경 (`material.SetColor("_EmissionColor")`) 또는 머티리얼 교체 방식 적용.
 - [ ] **(보스)Run/Walk 애니매이션 추가**: Run 애니메이션 추가 및 그에 맞는 보스 움직임 속도 부드럽게 증가시키기
+- [ ] **(플레이어)넉백 추가하기**: 플레이어가 보스에게 피격당했을 때 넉백 추가하기
 
 ---
 
 ### 📝 공통 문서화 작업
 - [ ] **책임(Responsibility) 문서화**: 로직별 책임 소재를 코드와 글로 명확히 설명 (면접 대비).
-
----
-
-### **2026-02-11 (수): Boss Asset & Physics Integration**
-
-*   **작업 내용**
-    *   **Asset 교체**: 기존 **Cube**를 **Dragon** 모델로 전면 교체.
-    *   **Animator & Blend Tree**: Idle/Walk 모션 혼합을 위한 Blend Tree 구축.
-        *   Threshold 수동 설정: `0`(Idle), `3.5`(Walk).
-    *   **Movement Sync**:          
-        *   `CharacterController` Radius/Height(1/1) 조정으로 공중 부양(Floating) 이슈 해결.
-        *   플레이어와 동일한 중력(`Physics.gravity`) 로직 적용.
-    *   **Boss Logic & Patterns**:
-        *   **ClawAttackPattern 구현**: `IBossAttackPattern`을 구현한 신규 공격 클래스 추가 (Strategy Pattern 확장).
-        *   **로직**: 타겟 회전 → 애니메이션 → Hitbox 활성화(데미지 계수) → 돌진(Rush) → 정지.
-        *   **Feature Toggles**: `enableChase`, `enableRotation`, `enableBasic/ClawAttack` 등 기능별 On/Off 디버그 인스펙터 추가.
-    *   **Hitbox System**:
-        *   **Compound Colliders**: 이동용 `CharacterController`와 피격용 `Capsule Collider`(Head, Body, Tail - Bone 부착) 역할 분리.
-        *   `BossHitBox` - `BossHealth` 중계 구조 구현.
-        *   `DamageCaster` 중복 피격 방지(단일 프레임 다중 히트 무시) 로직 추가.
-    *   **Tools**: 기능별(Attack, Chase) Toggle 인스펙터 추가, Raycast 시각화(Gizmo 색상 변경).
-
-*   **기술적 포인트**
-    *   **Asset Migration Strategy**: 단순 모델 교체가 아닌, 물리(Controller)와 피격(Collider)을 분리하여 유지보수성 확보.
-    *   **Compound Collider**: Mesh Collider의 오버헤드를 피하고, Bone을 따라가는 Primitive Collider 조합으로 성능 최적화.
-    *   **Strategy Pattern Flexibility**: `BasicAttackPattern`에 이어 `ClawAttackPattern`을 추가할 때, **`BossAttackState`의 코드 수정 없이** 패턴 클래스만 추가하여 확장이 가능함을 입증 (OCP 준수).
