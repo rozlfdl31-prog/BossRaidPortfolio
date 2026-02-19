@@ -12,6 +12,7 @@
 
 
 * **Collection Pre-allocation**: 물리 판정 결과나 객체 리스트를 담는 배열/리스트는 `Awake`에서 미리 최대 크기로 할당하여 재사용한다.
+* **Pooling Lifecycle Rule**: 투사체/이펙트는 `Object Pool`로 관리하며, 런타임 `Instantiate/Destroy`를 금지한다. 활성화 시 `Initialize`, 종료 시 반드시 `ReturnToPool` 경로로만 반납한다.
 
 ## 2. Architecture: Input & Logic Separation
 
@@ -30,6 +31,9 @@
 * **Separated Rotation**:
 * `CameraRoot`: 마우스 입력에 따라 즉각 회전.
 * `Character Body`: 이동 입력이 있을 때만 이동 방향으로 부드럽게 회전(`Slerp`).
+* **Projectile Axis Separation**: 투사체 유도는 축을 분리한다. 수평 조향은 XZ 평면(`RotateTowards`)으로 처리하고, 수직 추적은 Y축 `MoveTowards`로 별도 처리한다.
+* **Projectile Vertical Follow Tuning**: Y축 추적 강도는 하드코딩하지 않고 인스펙터 직렬화 값(`verticalFollowSpeed`)으로 노출한다. `0`일 때는 발사 높이를 유지해야 한다.
+* **Hit Resolution Robustness**: 투사체 충돌 처리 시 `OnTriggerEnter`만 가정하지 않는다. `OnCollisionEnter` 경로를 함께 제공하고, 데미지 대상 탐색은 `GetComponent<IDamageable>()` 후 `GetComponentInParent<IDamageable>()` 순으로 폴백한다.
 
 
 

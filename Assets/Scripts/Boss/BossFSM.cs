@@ -4,7 +4,7 @@ using UnityEngine;
 namespace Core.Boss
 {
     // ==================================================================================
-    // Concrete Boss States
+    // 보스 상태 구현
     // ==================================================================================
 
     public class BossIdleState : BossBaseState
@@ -13,7 +13,7 @@ namespace Core.Boss
 
         public override void Enter()
         {
-            Controller.StopMoving(); // Visual null-safe
+            Controller.StopMoving(); // Visual 미할당이어도 안전하게 동작
         }
 
         public override void Update()
@@ -78,29 +78,37 @@ namespace Core.Boss
                 // 공격 쿨타임 확인 후 공격 전환
                 if (Controller.CanAttack)
                 {
+                    // 매 프레임 List 할당을 피하기 위해 카운트/인덱스 방식으로 선택
+                    int enabledPatternCount = 0;
+                    if (Controller.EnableBasicAttack) enabledPatternCount++;
+                    if (Controller.EnableLungeAttack) enabledPatternCount++;
+                    if (Controller.EnableProjectileAttack) enabledPatternCount++;
+
+                    // 활성 패턴이 하나도 없으면 공격 상태로 전환하지 않음
+                    if (enabledPatternCount == 0) return;
+
+                    int pick = Random.Range(0, enabledPatternCount);
                     IBossAttackPattern selectedPattern = null;
 
-                    // 활성화된 공격 패턴 확인 및 선택
-                    if (Controller.EnableBasicAttack && Controller.EnableClawAttack)
+                    if (Controller.EnableBasicAttack)
                     {
-                        // 둘 다 활성화 시 50% 확률로 선택
-                        selectedPattern = (Random.value > 0.5f) ? Controller.BasicAttackPattern : Controller.ClawAttackPattern;
-                    }
-                    else if (Controller.EnableBasicAttack)
-                    {
-                        selectedPattern = Controller.BasicAttackPattern;
-                    }
-                    else if (Controller.EnableClawAttack)
-                    {
-                        selectedPattern = Controller.ClawAttackPattern;
+                        if (pick == 0) selectedPattern = Controller.BasicAttackPattern;
+                        pick--;
                     }
 
-                    // 선택된 패턴이 있을 경우에만 공격 상태로 전환
-                    if (selectedPattern != null)
+                    if (selectedPattern == null && Controller.EnableLungeAttack)
                     {
-                        Controller.AttackState.SetPattern(selectedPattern);
-                        Controller.StateMachine.ChangeState(Controller.AttackState);
+                        if (pick == 0) selectedPattern = Controller.LungeAttackPattern;
+                        pick--;
                     }
+
+                    if (selectedPattern == null && Controller.EnableProjectileAttack)
+                    {
+                        selectedPattern = Controller.ProjectileAttackPattern;
+                    }
+
+                    Controller.AttackState.SetPattern(selectedPattern);
+                    Controller.StateMachine.ChangeState(Controller.AttackState);
                 }
             }
         }

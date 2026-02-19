@@ -128,7 +128,8 @@ Boss (Root)
 ```csharp
 private const string ANIM_LOCOMOTION   = "Locomotion";
 private const string ANIM_BASIC_ATTACK = "Basic Attack";
-private const string ANIM_CLAW_ATTACK  = "Claw Attack";
+private const string ANIM_LUNGE_ATTACK = "Lunge Attack";
+private const string ANIM_FLAME_ATTACK = "Flame Attack";
 // Hit, Die는 BaseVisual에서 상속
 ```
 
@@ -137,7 +138,8 @@ private const string ANIM_CLAW_ATTACK  = "Claw Attack";
 |------|--------|-----------|
 | Idle/Combat (이동) | `PlayMove()` / `SetSpeed()` | Blend Tree의 `Speed` 파라미터 조절 |
 | Basic Attack | `PlayAttack()` | `CrossFade("Basic Attack")` |
-| Claw Attack | `PlayClawAttack()` | `CrossFade("Claw Attack")` |
+| Lunge Attack | `PlayLungeAttack()` | `CrossFade("Lunge Attack")` (없으면 `"Claw Attack"` 폴백) |
+| Projectile Attack | `PlayProjectileAttack()` | `CrossFade("Flame Attack")` 우선 (없으면 `"Fireball Shoot"` 폴백) |
 | Hit | `TriggerHit()` | `CrossFade("Hit")` + Flash 이펙트 |
 | Dead | `TriggerDie()` | `CrossFade("Die")` |
 
@@ -148,4 +150,12 @@ private const string ANIM_CLAW_ATTACK  = "Claw Attack";
 | `Speed` ≥ 3.5 | Walk | 걷기 애니메이션 |
 
 > Threshold `3.5`는 `BossController.moveSpeed`와 동기화되어 있습니다.
+
+### 6.5. Projectile 연출/탄도 동기화 (2026-02-19)
+| 항목 | 구현 |
+|------|------|
+| 발사 시작 높이 | SpawnPoint의 Y를 그대로 사용 |
+| 비행 중 높이 | `verticalFollowSpeed`로 `target.y`에 `MoveTowards` 수렴 |
+| 수평 유도 | XZ 평면에서 `RotateTowards` 적용 (`homingStrength`, `homingDuration`) |
+| 충돌 처리 안정성 | `OnTriggerEnter` + `OnCollisionEnter` 동시 지원, 부모 `IDamageable` 폴백 |
 

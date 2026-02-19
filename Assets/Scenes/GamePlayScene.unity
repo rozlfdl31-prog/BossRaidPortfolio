@@ -232,16 +232,29 @@ MonoBehaviour:
   attackDuration: 1
   attackCooldown: 4
   _headDamageCaster: {fileID: 423284611}
-  _clawDamageCaster: {fileID: 1189825118}
-  clawAttackSettings:
+  _lungeDamageCaster: {fileID: 1189825118}
+  lungeAttackSettings:
     damageMultiplier: 1.5
     rushSpeed: 5
-    rushPhaseRatio: 0.749
-    exitPhaseRatio: 0.81
-  enableChase: 1
+    rushPhaseRatio: 0.5
+    exitPhaseRatio: 0.5
+  projectileAttackSettings:
+    telegraphDuration: 0.3
+    damage: 12
+    speed: 12
+    lifetime: 3
+    volleyCount: 5
+    volleyInterval: 0.08
+    homingStrength: 0.35
+    homingDuration: 1.2
+    verticalFollowSpeed: 4
+  projectilePool: {fileID: 746045139}
+  projectileSpawnPoint: {fileID: 652612857}
+  enableChase: 0
   enableRotation: 1
   enableBasicAttack: 0
-  enableClawAttack: 1
+  enableLungeAttack: 0
+  enableProjectileAttack: 1
 --- !u!143 &242866945
 CharacterController:
   m_ObjectHideFlags: 0
@@ -584,6 +597,37 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &652612856
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 652612857}
+  m_Layer: 6
+  m_Name: ProjectileSpawnPlace
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &652612857
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 652612856}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -92.9, y: -22.1, z: -0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 2083304894}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &705507993
 GameObject:
   m_ObjectHideFlags: 0
@@ -678,6 +722,55 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
+--- !u!1 &746045138
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 746045140}
+  - component: {fileID: 746045139}
+  m_Layer: 0
+  m_Name: BossProjectilePool
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &746045139
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 746045138}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 837f2950c443ba44a92c76a5784ca018, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  projectilePrefab: {fileID: 3822946557110241773, guid: e0ae9dbe3d3b5aa499891d3a7b223cf9, type: 3}
+  poolRoot: {fileID: 0}
+  prewarmCount: 12
+  maxCount: 24
+  expand: 1
+--- !u!4 &746045140
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 746045138}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: -4.36, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!4 &756557055 stripped
 Transform:
   m_CorrespondingSourceObject: {fileID: 472304, guid: eb58e8f2831a51f45a44a261e6710cdd, type: 3}
@@ -3334,6 +3427,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 472304, guid: eb58e8f2831a51f45a44a261e6710cdd, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1470039690}
+    - targetCorrespondingSourceObject: {fileID: 447446, guid: eb58e8f2831a51f45a44a261e6710cdd, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 652612857}
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: eb58e8f2831a51f45a44a261e6710cdd, type: 3}
 --- !u!4 &2082381616 stripped
@@ -3344,6 +3440,11 @@ Transform:
 --- !u!95 &2082381617 stripped
 Animator:
   m_CorrespondingSourceObject: {fileID: 9586004, guid: eb58e8f2831a51f45a44a261e6710cdd, type: 3}
+  m_PrefabInstance: {fileID: 2082381615}
+  m_PrefabAsset: {fileID: 0}
+--- !u!4 &2083304894 stripped
+Transform:
+  m_CorrespondingSourceObject: {fileID: 447446, guid: eb58e8f2831a51f45a44a261e6710cdd, type: 3}
   m_PrefabInstance: {fileID: 2082381615}
   m_PrefabAsset: {fileID: 0}
 --- !u!1 &2135559824
@@ -3387,3 +3488,4 @@ SceneRoots:
   - {fileID: 242866943}
   - {fileID: 311313670}
   - {fileID: 526901782}
+  - {fileID: 746045140}

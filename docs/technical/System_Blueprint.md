@@ -114,7 +114,7 @@ classDiagram
 *   **Controller**: `Assets/Scripts/Boss/BossController.cs`
 *   **Visual**: `Assets/Scripts/Boss/BossVisual.cs`
 *   **States**: `Assets/Scripts/Boss/BossFSM.cs` (모든 Boss State 클래스 포함)
-*   **Attack Patterns**: `Assets/Scripts/Boss/Attacks/` (`IBossAttackPattern.cs`, `BasicAttackPattern.cs`, `ClawAttackPattern.cs`)
+*   **Attack Patterns**: `Assets/Scripts/Boss/Attacks/` (`IBossAttackPattern.cs`, `BasicAttackPattern.cs`, `LungeAttackPattern.cs`, `ProjectileAttackPattern.cs`)
 *   **Combat**: `Assets/Scripts/Common/Combat/Health.cs`, `Assets/Scripts/Common/Combat/DamageCaster.cs`, `Assets/Scripts/Common/Combat/BossHitBox.cs`
 
 ```mermaid
@@ -131,8 +131,11 @@ classDiagram
         -StateMachine~BossBaseState~ _stateMachine
         +BossVisual Visual
         +DamageCaster HeadDamageCaster
-        +DamageCaster ClawDamageCaster
-        +ClawAttackSettings ClawAttackSettings
+        +DamageCaster LungeDamageCaster
+        +LungeAttackSettings LungeAttackSettings
+        +ProjectileAttackSettings ProjectileAttackSettings
+        +BossProjectilePool ProjectilePool
+        +Transform ProjectileSpawnPoint
         +Update()
         +MoveRaw(Vector3, float)
     }
@@ -149,7 +152,8 @@ classDiagram
         +PlayIdle()
         +PlayMove()
         +PlayAttack()
-        +PlayClawAttack()
+        +PlayLungeAttack()
+        +PlayProjectileAttack()
         +TriggerHit()
         +TriggerDie()
         +SetSearchingUI(bool)
@@ -194,7 +198,8 @@ classDiagram
 공격 패턴의 확장성을 위해 `Strategy Pattern`을 적용했습니다. `BossAttackState`는 구체적인 공격 로직을 알지 못하며, 주입된 `IBossAttackPattern`에게 실행을 위임합니다.
 
 **관련 코드:**
-*   **Attack Patterns**: `Assets/Scripts/Boss/Attacks/` (`IBossAttackPattern.cs`, `BasicAttackPattern.cs`)
+*   **Attack Patterns**: `Assets/Scripts/Boss/Attacks/` (`IBossAttackPattern.cs`, `BasicAttackPattern.cs`, `LungeAttackPattern.cs`, `ProjectileAttackPattern.cs`)
+*   **Projectile Pooling**: `Assets/Scripts/Boss/Projectiles/` (`BossProjectilePool.cs`, `BossProjectile.cs`)
 
 ```mermaid
 classDiagram
@@ -202,9 +207,11 @@ classDiagram
 
     class BossController {
         +BasicAttackPattern BasicAttackPattern
+        +LungeAttackPattern LungeAttackPattern
+        +ProjectileAttackPattern ProjectileAttackPattern
+        +BossProjectilePool ProjectilePool
         +StartAttackCooldown()
         +AttackDamage int
-        +AttackDuration float
     }
 
     class BossAttackState {
@@ -229,20 +236,47 @@ classDiagram
         +Exit(BossController)
     }
 
-    class ClawAttackPattern {
-        -ClawAttackSettings _settings
-        -float _timer
+    class LungeAttackPattern {
+        -LungeAttackSettings _settings
+        -bool _rushComplete
         +Enter(BossController)
         +Update(BossController) bool
         +Exit(BossController)
     }
 
+    class ProjectileAttackPattern {
+        -ProjectileAttackSettings _settings
+        -float _telegraphTimer
+        -float _volleyTimer
+        -int _shotsFired
+        +Enter(BossController)
+        +Update(BossController) bool
+        +Exit(BossController)
+    }
+
+    class BossProjectile {
+        +Initialize()
+        +Update()
+        +OnTriggerEnter(Collider)
+        +OnCollisionEnter(Collision)
+    }
+
+    class BossProjectilePool {
+        +TryGetProjectile() BossProjectile
+        +ReturnProjectile(BossProjectile)
+    }
+
     %% Relationships
     BossAttackState --> IBossAttackPattern : Delegates (Context -> Strategy)
     IBossAttackPattern <|.. BasicAttackPattern : Implements
-    IBossAttackPattern <|.. ClawAttackPattern : Implements
+    IBossAttackPattern <|.. LungeAttackPattern : Implements
+    IBossAttackPattern <|.. ProjectileAttackPattern : Implements
     BossController --> BasicAttackPattern : Owns
-    BossController --> ClawAttackPattern : Owns
+    BossController --> LungeAttackPattern : Owns
+    BossController --> ProjectileAttackPattern : Owns
+    BossController --> BossProjectilePool : Owns
+    ProjectileAttackPattern --> BossProjectilePool : Uses
+    BossProjectilePool --> BossProjectile : Reuses
 ```
 
 ---
@@ -287,7 +321,7 @@ classDiagram
 | **Input Packet** | ✅ Done | `PlayerInputPacket` (Bit-packing) 적용 완료. |
 | **StateMachine** | ✅ Done | `BossRaid.Patterns` 네임스페이스 적용 및 구현 완료. |
 | **Physics System** | ✅ Done | `NonAlloc` 물리 판정(OverlapSphere) 및 최적화 완료. |
-| **Object Pooling** | ⬜ Todo | 투사체/VFX Zero-Allocation 관리. |
+| **Object Pooling** | ✅ Done | `BossProjectilePool` 기반 투사체 재사용(Prewarm/Max/Expand) 구현 완료. |
 
 ### 4.2. Player System
 | Component | Status | Note |
@@ -307,7 +341,7 @@ classDiagram
 | **Boss Sensors** | ✅ Done | `CheckLineOfSight` (Raycast) 및 거리 감지 로직 |
 | **Boss Navigation** | ✅ Done | `MoveTo` (추적 이동) 및 `RotateTowards` (회전) 로직 |
 | **Boss Visuals** | ✅ Done | 구조 분리 및 Dragon Asset(Animator/BlendTree) 통합 완료. |
-| **Boss Combat** | 🔄 In Progress | `Pattern 1`(Basic) & `Claw Attack`(Strategy) 구현 완료. |
+| **Boss Combat** | 🔃 progress | `Pattern 1`(Basic), `Pattern 2`(Lunge), `Pattern 3`(Projectile: Flame Attack + Homing + Vertical Follow) 완료. `Pattern 4`(AoE) 진행 중. |
 
 ### 4.4. User Interface (UI)
 | Component | Status | Note |

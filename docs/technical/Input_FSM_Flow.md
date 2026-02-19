@@ -156,3 +156,45 @@ public override void Update(PlayerInputPacket input) {
 
 > **결론**: 상태 변수 교체는 즉각적(Sync)이지만, 해당 상태의 반복 로직(`Update`)은 다음 프레임부터 실행됨.
 
+---
+
+## 7. Boss Combat Pipeline (Projectile Pattern)
+보스는 Combat 상태에서 활성화된 패턴(Basic/Lunge/Projectile) 중 하나를 균등 랜덤으로 선택합니다.
+
+```mermaid
+sequenceDiagram
+    participant Combat as BossCombatState
+    participant Attack as BossAttackState
+    participant Pattern as ProjectileAttackPattern
+    participant Visual as BossVisual
+    participant Pool as BossProjectilePool
+    participant Proj as BossProjectile
+    participant Target as IDamageable
+
+    Combat->>Combat: 활성 토글 수 계산
+    Combat->>Combat: Random.Range로 패턴 선택
+    Combat->>Attack: SetPattern(Projectile)
+    Attack->>Pattern: Enter()
+    Pattern->>Visual: PlayProjectileAttack() (Flame Attack 우선)
+    Pattern->>Pattern: Telegraph 0.3s
+    loop 3회 발사 (-8, 0, +8)
+        Pattern->>Pool: TryGetProjectile()
+        Pool-->>Pattern: BossProjectile
+        Pattern->>Proj: Initialize(speed, damage, lifetime, owner, target, homing, verticalFollow)
+    end
+    loop projectile Update
+        Proj->>Proj: XZ 유도 회전 (RotateTowards)
+        Proj->>Proj: Y값 보정 (MoveTowards -> target.y)
+    end
+    Proj->>Target: TakeDamage(damage)
+    Proj->>Pool: ReturnProjectile()
+    Pattern-->>Attack: Update() == true (종료)
+    Attack->>Combat: ChangeState(Combat)
+```
+
+- `BossProjectilePool`은 `Awake`에서 Prewarm 후 재사용합니다.
+- 풀 고갈 + 확장 비활성화 시 해당 발사는 스킵되며 경고 로그를 남깁니다.
+- 투사체는 **발사 시점에는 SpawnPoint의 Y값**으로 시작하고, 비행 중 `verticalFollowSpeed`로 플레이어 Y값에 수렴합니다.
+- 유도(`homingStrength`, `homingDuration`)는 XZ 평면 기준으로 처리하여 수평 추적 안정성을 유지합니다.
+- 피격 판정은 `OnTriggerEnter` + `OnCollisionEnter`를 모두 처리하며, 필요 시 `GetComponentInParent<IDamageable>()`로 부모 컴포넌트까지 탐색합니다.
+

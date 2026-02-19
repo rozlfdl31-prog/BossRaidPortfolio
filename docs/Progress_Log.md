@@ -261,23 +261,79 @@
 *   **기술적 고민**
     *   **Animation Event vs Code Timer**: 애니메이션 이벤트를 심는 방식은 직관적이나 클립 교체 시 재작업 필요. 코드로 `normalizedTime`을 체크하는 방식은 클립이 바뀌어도 비율(%)로 동작하므로 유지보수에 더 유리하다고 판단.
 
+---
+
+### **2026-02-19 (목): Boss Projectile Pattern & Object Pooling**
+
+*   **✅ 오늘 완료한 작업**
+    *   **Pattern 3 (ProjectileAttackPattern) 구현**: `IBossAttackPattern` 기반으로 `telegraph 0.3s -> 3연발(-8/0/+8) -> 종료` 파이프라인 구현.
+    *   **Boss 전투 패턴 선택 확장**: `BossCombatState`에서 Basic/Lunge/Projectile 활성 토글을 기준으로 균등 랜덤 선택 로직 적용.
+    *   **투사체 오브젝트 풀 구축**:
+        *   `BossProjectilePool`: `prewarmCount=12`, `maxCount=24`, `expand=true` 기본 설정.
+        *   풀 고갈 + 확장 비활성화 시 샷 스킵 및 경고 로그 출력.
+    *   **투사체 런타임 로직 구현**:
+        *   `BossProjectile`: `Initialize` 기반 재사용, 전진 이동, 수명 만료 반납.
+        *   `IDamageable` 충돌 시 데미지 적용 후 즉시 풀 반환.
+        *   Owner `InstanceID` 기반 자기 자신 피격 방지.
+    *   **문서 동기화 완료**:
+        *   `System_Blueprint.md`, `Input_FSM_Flow.md`, `Coding_Standard.md`, `Technical_Glossary.md` 업데이트.
+
+*   **🧠 기술적 고민 (Senior's Review)**
+    *   **Zero-GC 우선순위**: 전투 루프는 프레임 민감 구간이므로, 패턴 선택 단계에서도 `List` 생성 대신 카운트/인덱스 방식으로 분기해 per-frame 할당을 차단.
+    *   **패턴 확장성과 상태 안정성 분리**: `BossAttackState`는 여전히 `IBossAttackPattern` 계약만 알고, 투사체 세부 로직/수명 관리는 패턴+프로젝트ाइल 계층으로 분리하여 OCP를 유지.
+    *   **풀 고갈 정책의 명시성**: 확장 불가 상황에서 무한 대기 대신 “샷 스킵 + 경고”를 채택해 문제를 빠르게 가시화하고, QA에서 튜닝 포인트(`Prewarm/Max`)를 명확히 추적 가능하게 함.
+    *   **애니메이션 의존 최소화**: Projectile 패턴은 코드 타이머 기반으로 먼저 완성해 클립 교체 내성을 확보. 이후 필요 시 이벤트 키잉을 얹는 단계적 접근이 유지보수 비용 대비 효과가 높다고 판단.
+
+---
+
+### **2026-02-19 (목): Projectile Tracking/Hit 안정화 & Flame 연동**
+
+*   **✅ 오늘 완료한 작업**
+    *   **피해 판정 누락 보강**:
+        *   `BossProjectile` 충돌 처리에 `OnTriggerEnter` + `OnCollisionEnter`를 모두 지원.
+        *   `IDamageable` 탐색 시 `GetComponent` 실패하면 `GetComponentInParent`로 폴백하여 자식 콜라이더 히트 누락을 해결.
+    *   **Projectile 애니메이션 연동 강화**:
+        *   `ProjectileAttackPattern.Enter()`에서 `BossVisual.PlayProjectileAttack()` 호출.
+        *   `BossAnimator.controller`에 `Flame Attack` 상태 추가 후 `Assets/FourEvilDragonsPBR/Animations/DragonUsurper/attackFlame.fbx` 클립 연결.
+    *   **유도 로직 개선 (전탄 유도 안정화)**:
+        *   투사체별 `_moveDirection` 기반으로 유도 회전을 처리하여 volley 전탄이 동일한 규칙으로 유도되도록 정리.
+        *   유도 강도/시간을 `homingStrength`, `homingDuration`으로 인스펙터 튜닝 가능하게 유지.
+    *   **Y축 궤적 정책 개선**:
+        *   발사 시작은 SpawnPoint의 Y를 그대로 사용.
+        *   비행 중에는 `verticalFollowSpeed`로 플레이어 Y에 점진 수렴하도록 변경(`MoveTowards`).
+        *   `verticalFollowSpeed = 0`이면 발사 높이 유지.
+    *   **문서 동기화 진행**:
+        *   `System_Blueprint.md`, `Input_FSM_Flow.md`, `Coding_Standard.md`, `Technical_Glossary.md`, 애니메이션 문서 업데이트.
+
+*   **🧠 기술적 고민 (Senior's Review)**
+    *   **축 분리 유도 전략**: XZ는 조향(`RotateTowards`), Y는 보간(`MoveTowards`)으로 분리해 조준 안정성과 연출 제어를 동시에 확보.
+    *   **발사 시점 일관성**: SpawnPoint 높이를 발사 초기값으로 고정하면 발사 연출(입/손 위치)과 충돌 감각의 직관성이 높아짐.
+    *   **충돌 경로 다중화의 안전성**: Trigger/Collision 둘 다 처리하면 프리팹 물리 세팅 변화(Trigger 토글, Rigidbody 옵션)에도 데미지 로직이 견고해짐.
+    *   **인스펙터 중심 튜닝**: 유도/수직 추적을 코드 하드코딩 대신 직렬화 파라미터로 유지하여 기획-개발 루프를 단축.
+
+*   **📌 내일 할 것**
+    *   [ ] 프로젝트 렌더링 파이프라인 방향 결정 (Built-in vs URP).
+    *   [ ] `Assets/CombatGirlsCharacterPack`, `Assets/FourEvilDragonsPBR` 분홍색 머티리얼 문제 해결.
+    *   [ ] Built-in 유지 시: 두 에셋 팩 재임포트로 Standard 셰이더 복구.
+    *   [ ] URP 전환 시: URP 설치, 파이프라인 에셋 할당, 머티리얼 업그레이드.
+
 
 ## 📈 2월 마일스톤: 싱글플레이 로직 완성 (Capsule vs Cube)
 
 > **목표**: 클라이언트 구축
 
 ### 1주차: 플레이어 컨트롤러 & 전투 시스템 (The Capsule & Sword) ✅
-- [x] **Input System**: 키보드/마우스 및 패드 입력을 인터페이스화해서 분리.
-- [x] **FSM (State Machine)**: `PlayerState` 클래스 기반의 상태 머신 (Idle, Move, Attack, Dash).
-- [x] **이동 로직**: `CharacterController`를 이용한 물리 기반 이동.
-- [x] **핵심**: 입력과 로직 분리 완료. (네트워크 입력 교체 대비)
-- [x] **에셋 교체**: `CombatGirls_KatanaCharacterPack` 연동 및 `Visual` 계층 분리 (`Animator_Setup_Guide.md` 준수).
-- [x] **Animator 설정**: `Locomotion`, `Attack1~3`, `Jump`, `Quickshift_F` 상태 연결.
-- [x] **Hitbox 시스템**: 칼이 휘둘러질 때 특정 프레임에서만 판정이 생기도록 설계.
-- [x] **피격 시스템**: 플레이어/보스가 데미지를 받았을 때의 반응 (HP 감소, 피격 애니메이션, 무적 시간).
-- [x] **Damage 클래스**: `IDamageable` 인터페이스 (보스/잡몹 공통 상속).
-- [x] **판정 최적화**: `Physics.OverlapSphereNonAlloc` 사용.
-- [x] **핵심**: 코드가 판정 시점을 정확히 계산하는 것을 보여줘야 함.
+- [v] **Input System**: 키보드/마우스 및 패드 입력을 인터페이스화해서 분리.
+- [v] **FSM (State Machine)**: `PlayerState` 클래스 기반의 상태 머신 (Idle, Move, Attack, Dash).
+- [v] **이동 로직**: `CharacterController`를 이용한 물리 기반 이동.
+- [v] **핵심**: 입력과 로직 분리 완료. (네트워크 입력 교체 대비)
+- [v] **에셋 교체**: `CombatGirls_KatanaCharacterPack` 연동 및 `Visual` 계층 분리 (`Animator_Setup_Guide.md` 준수).
+- [v] **Animator 설정**: `Locomotion`, `Attack1~3`, `Jump`, `Quickshift_F` 상태 연결.
+- [v] **Hitbox 시스템**: 칼이 휘둘러질 때 특정 프레임에서만 판정이 생기도록 설계.
+- [v] **피격 시스템**: 플레이어/보스가 데미지를 받았을 때의 반응 (HP 감소, 피격 애니메이션, 무적 시간).
+- [v] **Damage 클래스**: `IDamageable` 인터페이스 (보스/잡몹 공통 상속).
+- [v] **판정 최적화**: `Physics.OverlapSphereNonAlloc` 사용.
+- [v] **핵심**: 코드가 판정 시점을 정확히 계산하는 것을 보여줘야 함.
 
 
 ---
@@ -285,28 +341,41 @@
 ### 2주차: 보스 AI 패턴 (The Cube)
 
 #### 보스 FSM 아키텍처 ✅
-- [x] **StateMachine 제네릭화**: `StateMachine<TState>`로 Player/Boss 공용 상태 머신 통합.
-- [x] **BossBaseState**: `BaseState<BossController>` 상속, `Update()` 입력 없이 내부 로직만 처리.
-- [x] **IState 인터페이스**: `Enter()`/`Exit()` 공통 계약 정의로 StateMachine의 구체 타입 의존 제거.
-- [x] **BossVisual 분리**: 애니메이션/UI 제어를 `BossVisual` 클래스로 이관하여 SRP 준수.
+- [v] **StateMachine 제네릭화**: `StateMachine<TState>`로 Player/Boss 공용 상태 머신 통합.
+- [v] **BossBaseState**: `BaseState<BossController>` 상속, `Update()` 입력 없이 내부 로직만 처리.
+- [v] **IState 인터페이스**: `Enter()`/`Exit()` 공통 계약 정의로 StateMachine의 구체 타입 의존 제거.
+- [v] **BossVisual 분리**: 애니메이션/UI 제어를 `BossVisual` 클래스로 이관하여 SRP 준수.
 
 #### 피격 로직 (Player & Boss 공통) ✅
-- [x] **IDamageable 인터페이스**: 공격자가 타겟 타입을 몰라도 데미지 전달 가능.
-- [x] **Health 컴포넌트**: HP 관리, `OnDamage`/`OnDie` 이벤트 발행.
-- [x] **DamageCaster**: `OverlapSphereNonAlloc`으로 GC-Free 타격 판정.
-- [x] **Event-Driven Death**: `OnDie` 이벤트 구독으로 `DeadState` 전환.
+- [v] **IDamageable 인터페이스**: 공격자가 타겟 타입을 몰라도 데미지 전달 가능.
+- [v] **Health 컴포넌트**: HP 관리, `OnDamage`/`OnDie` 이벤트 발행.
+- [v] **DamageCaster**: `OverlapSphereNonAlloc`으로 GC-Free 타격 판정.
+- [v] **Event-Driven Death**: `OnDie` 이벤트 구독으로 `DeadState` 전환.
 
-#### 보스 행동 패턴 🔄
-- [x] **패턴 1 (추적)**: 플레이어와의 거리 계산, 적정 거리 유지 및 공격 유도.
-- [x] **근접 공격 (BasicAttackPattern)**: `IBossAttackPattern` Strategy Pattern 적용. 쿨다운 시스템.
-- [x] **패턴 2 (돌격)**: 예고 표시 후 돌진.
-- [ ] **패턴 3 (투사체)**: 큐브에서 작은 큐브(미사일) 발사.
-- [ ] **추적 알고리즘 검토**: NavMesh / A* 경로탐색 적용 여부 결정.
+#### 보스 행동 패턴 ✅
+- [v] **패턴 1 (추적)**: 플레이어와의 거리 계산, 적정 거리 유지 및 공격 유도.
+- [v] **근접 공격 (BasicAttackPattern)**: `IBossAttackPattern` Strategy Pattern 적용. 쿨다운 시스템.
+- [v] **패턴 2 (돌격)**: 예고 표시 후 돌진.
+- [v] **패턴 3 (투사체)**: 풀링 기반 발사 + Flame Attack 연동 + 유도/수직 추적 튜닝.
+- [x] **패턴 4 (장판)**: 용이 날아서 불을 쏘면 바닥에 장판을 쏜다.
 
 ---
 
-### 3주차: 시스템 최적화 & 게임 루프 (The Logic)
-- [ ] **오브젝트 풀링**: 미사일/이펙트를 Zero-Allocation으로 관리.
+### 3주차: 보스 행동 패턴 & 시스템 최적화 & 게임 루프 (The Logic) 
+
+#### 보스 행동 패턴 🔄
+- [ ] **패턴 3 (투사체)**: 풀링 기반 발사 + Flame Attack 연동 + 유도/수직 추적 튜닝.
+- [ ] 프로젝트 렌더링 파이프라인 방향 결정 (Built-in vs URP).
+- [ ] `Assets/CombatGirlsCharacterPack`, `Assets/FourEvilDragonsPBR` 분홍색 머티리얼 문제 해결.
+- [ ] Built-in 유지 시: 두 에셋 팩 재임포트로 Standard 셰이더 복구.
+- [ ] URP 전환 시: URP 설치, 파이프라인 에셋 할당, 머티리얼 업그레이드.
+- [ ] **패턴 4 (장판)**: 용이 날아서 불을 쏘면 바닥에 장판을 쏜다.
+
+#### 시스템 최적화 & 게임 루프 (The Logic) ✅
+- [v] **오브젝트 풀링**: `BossProjectilePool` 기반 미사일 재사용(Prewarm/Max/Expand) 완료.
+---
+
+### 4주차: 시스템 최적화 & 게임 루프 (The Logic)
 - [ ] **UI 시스템**: HP 바, 보스 페이즈 알림 등 코드 제어.
 - [ ] **게임 매니저**: 시작 → 전투 → 페이즈 전환 → 승리/패배 흐름 제어.
 
@@ -318,6 +387,9 @@
 - [ ] **(보스)Run/Walk 애니매이션 추가**: Run 애니메이션 추가 및 그에 맞는 보스 움직임 속도 부드럽게 증가시키기
 - [ ] **(플레이어)넉백 추가하기**: 플레이어가 보스에게 피격당했을 때 넉백 추가하기
 - [ ] **다중 레이캐스트 탐지**: 눈 위치(몸통 1/2~머리 중간)에서 여러 방향 감지.
+- [v] **(보스)ClawAttack -> LungeAttack 리네이밍**: 패턴/설정/토글 명칭을 Lunge 기준으로 정리.
+- [ ] **(보스)LungeAttack 모션 개선**: 도약 후 제자리 복귀 모션 제거, 공격 후 전진 위치 유지.
+- [ ] **추적 알고리즘 검토**: NavMesh / A* 경로탐색 적용 여부 결정.
 
 ---
 

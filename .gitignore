@@ -85,3 +85,9 @@ crashlytics-build.properties
 # IDE and Tooling
 .vscode/
 .gemini/
+
+/[Aa]ssets/[Ff]ree [Ff]ire [Vv][Ff][Xx] [Uu][Rr][Pp]/
+/[Aa]ssets/[Ff]ree [Ff]ire [Vv][Ff][Xx] [Uu][Rr][Pp].meta
+
+/[Aa]ssets/[Ff]our[Ee]vil[Dd]ragons[Pp][Bb][Rr]/
+/[Aa]ssets/[Cc]ombat[Gg]irls[Cc]haracter[Pp]ack/

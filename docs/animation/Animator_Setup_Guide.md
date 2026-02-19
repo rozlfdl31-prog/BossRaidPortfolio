@@ -94,7 +94,8 @@ Boss (Root)          <-- BossController (Logic), CharacterController (Physics)
 |------------|--------|------|
 | `Locomotion` | Blend Tree (Idle ↔ Walk) | Threshold `3.5` 기준 전환 |
 | `Basic Attack` | BasicAttack clip | 근접 머리 휘두르기 |
-| `Claw Attack` | ClawAttack clip | 돌진 + 할퀴기 |
+| `Lunge Attack` | LungeAttack clip | 도약 돌진 패턴 |
+| `Flame Attack` | `attackFlame.fbx` (`DragonUsurper`) | Projectile 패턴 진입 시 우선 재생 |
 | `Hit` | Hit clip | 피격 경직 |
 | `Die` | Die clip | 사망 |
 
@@ -104,8 +105,10 @@ Boss (Root)          <-- BossController (Logic), CharacterController (Physics)
 public void PlayIdle()       => CrossFade(AnimLocomotion);
 public void PlayMove()       => CrossFade(AnimLocomotion);  // Speed 파라미터로 제어
 public void PlayAttack()     => CrossFade(AnimBasicAttack);
-public void PlayClawAttack() => CrossFade(AnimClawAttack);
+public void PlayLungeAttack() => CrossFade(AnimLungeAttack);
+public void PlayProjectileAttack() => CrossFade(AnimFlameAttack);
 ```
 
 > **참고**: `PlayIdle()`과 `PlayMove()`는 둘 다 Locomotion Blend Tree를 사용하며, `SetSpeed()` 메서드로 `Speed` 파라미터를 조절하여 Idle/Walk을 전환합니다.
+> **참고 2**: `PlayProjectileAttack()`는 `Flame Attack` 상태를 우선 탐색하고, 없으면 `Fireball Shoot` 또는 `Basic Attack`으로 폴백합니다.
 

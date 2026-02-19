@@ -1,7 +1,9 @@
 ﻿using Core.Boss.Attacks;
+using Core.Boss.Projectiles;
 using Core.Combat;
 using Core.Common.Patterns;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace Core.Boss
 {
@@ -23,7 +25,7 @@ namespace Core.Boss
         /// </summary>
         private void OnValidate()
         {
-            // Ensure moveSpeed is not negative
+            // 이동 속도는 음수가 되지 않도록 보정
             if (moveSpeed < 0) moveSpeed = 0f;
             if (searchingMoveSpeed < 0) searchingMoveSpeed = 0f;
         }
@@ -42,17 +44,26 @@ namespace Core.Boss
         [Header("부위별 DamageCaster (Explicit per-part)")]
         [Tooltip("Basic Attack(물기) 판정용 — Head Bone에 부착")]
         [SerializeField] private DamageCaster _headDamageCaster;
-        [Tooltip("Claw Attack(할퀴기) 판정용 — 앞발 Bone에 부착 (미설정 시 Head 사용)")]
-        [SerializeField] private DamageCaster _clawDamageCaster;
+        [Tooltip("Lunge Attack(도약) 판정용 — 앞발 Bone에 부착 (미설정 시 Head 사용)")]
+        [FormerlySerializedAs("_clawDamageCaster")]
+        [SerializeField] private DamageCaster _lungeDamageCaster;
 
-        [Header("Claw Attack Settings")]
-        [SerializeField] private ClawAttackSettings clawAttackSettings;
+        [Header("Lunge Attack Settings")]
+        [FormerlySerializedAs("clawAttackSettings")]
+        [SerializeField] private LungeAttackSettings lungeAttackSettings;
+
+        [Header("Projectile Attack Settings")]
+        [SerializeField] private ProjectileAttackSettings projectileAttackSettings;
+        [SerializeField] private BossProjectilePool projectilePool;
+        [SerializeField] private Transform projectileSpawnPoint;
 
         [Header("디버그 설정 (Debug Settings)")]
         [SerializeField] private bool enableChase = true;
         [SerializeField] private bool enableRotation = true;
         [SerializeField] private bool enableBasicAttack = true;
-        [SerializeField] private bool enableClawAttack = true;
+        [FormerlySerializedAs("enableClawAttack")]
+        [SerializeField] private bool enableLungeAttack = true;
+        [SerializeField] private bool enableProjectileAttack = true;
 
         // FSM (제네릭 StateMachine 사용)
         private StateMachine<BossBaseState> _stateMachine;
@@ -68,7 +79,8 @@ namespace Core.Boss
 
         // Attack Patterns
         public BasicAttackPattern BasicAttackPattern { get; private set; }
-        public ClawAttackPattern ClawAttackPattern { get; private set; }
+        public LungeAttackPattern LungeAttackPattern { get; private set; }
+        public ProjectileAttackPattern ProjectileAttackPattern { get; private set; }
 
         // Components
         private CharacterController _characterController;
@@ -87,16 +99,21 @@ namespace Core.Boss
         public float AttackDuration => attackDuration;
         public bool CanAttack => Time.time >= _nextAttackTime;
         public DamageCaster HeadDamageCaster => _headDamageCaster;
-        public DamageCaster ClawDamageCaster => _clawDamageCaster;
+        public DamageCaster LungeDamageCaster => _lungeDamageCaster;
 
         public bool EnableChase => enableChase;
         public bool EnableBasicAttack => enableBasicAttack;
-        public bool EnableClawAttack => enableClawAttack;
+        public bool EnableLungeAttack => enableLungeAttack;
+        public bool EnableProjectileAttack => enableProjectileAttack;
+        public BossProjectilePool ProjectilePool => projectilePool;
+        public Transform ProjectileSpawnPoint => projectileSpawnPoint;
 
         private void Awake()
         {
             _characterController = GetComponent<CharacterController>();
             _health = GetComponent<Health>();
+            if (projectileAttackSettings == null) projectileAttackSettings = new ProjectileAttackSettings();
+            if (lungeAttackSettings == null) lungeAttackSettings = new LungeAttackSettings();
 
             // 플레이어가 할당되지 않았다면 자동으로 찾음
             if (playerTransform == null)
@@ -116,7 +133,8 @@ namespace Core.Boss
 
             // Attack Patterns 초기화
             BasicAttackPattern = new BasicAttackPattern();
-            ClawAttackPattern = new ClawAttackPattern(clawAttackSettings);
+            LungeAttackPattern = new LungeAttackPattern(lungeAttackSettings);
+            ProjectileAttackPattern = new ProjectileAttackPattern(projectileAttackSettings);
 
             if (_health != null)
             {
@@ -138,7 +156,7 @@ namespace Core.Boss
         {
             // DamageCaster에 Owner 설정 (자해 방지)
             if (_headDamageCaster != null) _headDamageCaster.SetOwner(gameObject);
-            if (_clawDamageCaster != null) _clawDamageCaster.SetOwner(gameObject);
+            if (_lungeDamageCaster != null) _lungeDamageCaster.SetOwner(gameObject);
 
             _stateMachine.ChangeState(IdleState);
         }
@@ -253,14 +271,13 @@ namespace Core.Boss
         #endregion
 
         [Header("Physics Settings")]
-        // [SerializeField] private float gravity = -9.81f; // Removed in favor of Physics.gravity.y
         private float _verticalVelocity;
 
         private void ApplyGravity()
         {
             if (_characterController.isGrounded && _verticalVelocity < 0)
             {
-                _verticalVelocity = -2f; // 지면에 붙어있게 하는 힘 (Ground sticking force)
+                _verticalVelocity = -2f; // 지면에 붙어있게 하는 힘
             }
             else
             {
@@ -294,19 +311,44 @@ namespace Core.Boss
         }
 
         #endregion
+
         [System.Serializable]
-        public class ClawAttackSettings
+        public class LungeAttackSettings
         {
             [Tooltip("기본 공격력 대비 배수")]
             public float damageMultiplier = 1.5f;
-            [Tooltip("돌진 속도")]
+            [Tooltip("도약 속도")]
             public float rushSpeed = 10.0f;
-            [Tooltip("애니메이션 진행률 기준 돌진 구간 (0~1). 0.3 = 전체 애니메이션의 30% 시점까지 돌진")]
+            [Tooltip("애니메이션 진행률 기준 도약 구간 (0~1). 0.3 = 전체 애니메이션의 30% 시점까지 도약")]
             [Range(0f, 1f)]
             public float rushPhaseRatio = 0.3f;
             [Tooltip("애니메이션 종료 시점 (0~1). 0.5 = 도약 동작만 재생하고 복귀 모션 생략")]
             [Range(0.1f, 1f)]
             public float exitPhaseRatio = 0.5f;
+        }
+
+        [System.Serializable]
+        public class ProjectileAttackSettings
+        {
+            [Tooltip("예고 시간(초)")]
+            public float telegraphDuration = 0.3f;
+            [Tooltip("투사체 데미지")]
+            public int damage = 12;
+            [Tooltip("투사체 속도")]
+            public float speed = 12f;
+            [Tooltip("투사체 수명(초)")]
+            public float lifetime = 3f;
+            [Tooltip("한 번의 패턴에서 발사할 개수")]
+            public int volleyCount = 3;
+            [Tooltip("발사 간격(초)")]
+            public float volleyInterval = 0.08f;
+            [Tooltip("유도 강도 (0 = 직진, 1 = 강한 유도)")]
+            [Range(0f, 1f)]
+            public float homingStrength = 0.25f;
+            [Tooltip("유도 지속 시간(초). 0이면 유도 비활성화")]
+            public float homingDuration = 1.2f;
+            [Tooltip("Y축 추적 속도 (0이면 발사 높이 유지)")]
+            public float verticalFollowSpeed = 4f;
         }
     }
 }
