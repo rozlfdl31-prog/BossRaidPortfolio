@@ -136,7 +136,6 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 242866943}
-  - component: {fileID: 242866941}
   - component: {fileID: 242866945}
   - component: {fileID: 242866946}
   - component: {fileID: 242866944}
@@ -147,48 +146,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!23 &242866941
-MeshRenderer:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 242866938}
-  m_Enabled: 1
-  m_CastShadows: 1
-  m_ReceiveShadows: 1
-  m_DynamicOccludee: 1
-  m_StaticShadowCaster: 0
-  m_MotionVectors: 1
-  m_LightProbeUsage: 1
-  m_ReflectionProbeUsage: 1
-  m_RayTracingMode: 2
-  m_RayTraceProcedural: 0
-  m_RenderingLayerMask: 1
-  m_RendererPriority: 0
-  m_Materials:
-  - {fileID: 10303, guid: 0000000000000000f000000000000000, type: 0}
-  m_StaticBatchInfo:
-    firstSubMesh: 0
-    subMeshCount: 0
-  m_StaticBatchRoot: {fileID: 0}
-  m_ProbeAnchor: {fileID: 0}
-  m_LightProbeVolumeOverride: {fileID: 0}
-  m_ScaleInLightmap: 1
-  m_ReceiveGI: 1
-  m_PreserveUVs: 0
-  m_IgnoreNormalsForChartDetection: 0
-  m_ImportantGI: 0
-  m_StitchLightmapSeams: 1
-  m_SelectedEditorRenderState: 3
-  m_MinimumChartSize: 4
-  m_AutoUVMaxDistance: 0.5
-  m_AutoUVMaxAngle: 89
-  m_LightmapParameters: {fileID: 0}
-  m_SortingLayerID: 0
-  m_SortingLayer: 0
-  m_SortingOrder: 0
-  m_AdditionalVertexStreams: {fileID: 0}
 --- !u!4 &242866943
 Transform:
   m_ObjectHideFlags: 0
@@ -222,8 +179,9 @@ MonoBehaviour:
   moveSpeed: 3.5
   searchingMoveSpeed: 2
   rotationSpeed: 5
-  detectionRange: 49.5
-  attackRange: 34.6
+  phaseTwoHealthThreshold: 0.5
+  detectionRange: 37.8
+  attackRange: 28.1
   searchDuration: 5
   obstacleMask:
     serializedVersion: 2
@@ -250,11 +208,47 @@ MonoBehaviour:
     verticalFollowSpeed: 4
   projectilePool: {fileID: 746045139}
   projectileSpawnPoint: {fileID: 652612857}
-  enableChase: 0
+  aoeAttackSettings:
+    circlePrefab: {fileID: 2956448141412348129, guid: 945a009e6db779544a49cb6e1ad583db, type: 3}
+    circleRoot: {fileID: 0}
+    takeOffDuration: 0.35
+    flyForwardDuration: 1.4
+    flyForwardSpeed: 6
+    castRange: 15.49
+    landDuration: 0.4
+    spawnInterval: 0.1
+    impactSyncTime: 0
+    damage: 10
+    telegraphDuration: 0.9
+    activeDuration: 0.9
+    tickInterval: 0.25
+    targetMask:
+      serializedVersion: 2
+      m_Bits: 128
+    circleCount: 8
+    maxCircleInstances: 12
+    radius: 2.5
+    spawnSpreadRadius: 4.5
+    headingLeadTime: 0.45
+    maxHeadingLeadDistance: 8
+    forwardSpreadRadius: 6
+    sideSpreadRadius: 6
+    headingBias: 0.85
+    headingMinSpeed: 0.05
+    groundRayHeight: 15
+    groundRayDistance: 40
+    groundOffset: 0.05
+    groundMask:
+      serializedVersion: 2
+      m_Bits: 513
+    fallbackProjectileHeight: 6
+  enableChase: 1
   enableRotation: 1
-  enableBasicAttack: 0
-  enableLungeAttack: 0
+  enableBasicAttack: 1
+  enableLungeAttack: 1
   enableProjectileAttack: 1
+  enableAoEAttack: 1
+  showPhaseDebugLabel: 1
 --- !u!143 &242866945
 CharacterController:
   m_ObjectHideFlags: 0
@@ -308,7 +302,7 @@ GameObject:
   - component: {fileID: 311313669}
   - component: {fileID: 311313668}
   - component: {fileID: 311313667}
-  m_Layer: 0
+  m_Layer: 9
   m_Name: Ground
   m_TagString: Untagged
   m_Icon: {fileID: 0}

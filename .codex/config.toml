@@ -1,0 +1,14 @@
+# Project overrides for BossRaidPortfolio
+model = "gpt-5.3-codex"
+model_reasoning_effort = "high"
+personality = "pragmatic"
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "cached"
+
+[shell_environment_policy]
+include_only = ["PATH", "HOME", "USERPROFILE", "SystemRoot", "COMSPEC", "TMP", "TEMP"]
+
+[features]
+shell_snapshot = true
