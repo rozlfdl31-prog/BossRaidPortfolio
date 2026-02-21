@@ -348,6 +348,7 @@ classDiagram
 | **Physics System** | ✅ Done | `NonAlloc` 물리 판정(OverlapSphere) 및 최적화 완료. |
 | **Object Pooling** | ✅ Done | `BossProjectilePool` 기반 투사체 재사용(Prewarm/Max/Expand) 구현 완료. |
 | **Package Baseline** | ✅ Done | Unity 2022.3 기준으로 package manifest 정리 및 lock 재생성 경로 복구 (`URP/VFX 14.0.12`, `TMP 추가`, Unity 6 전용 의존성 제거). |
+| **External Asset Distribution Policy** | ✅ Done | free tier 저장소 정책상 대용량 서드파티 에셋(`CombatGirlsCharacterPack`, `FourEvilDragonsPBR`, `UNI VFX`)은 Git에서 제외하고 팀원이 동일 버전을 수동 임포트한다. 레포에는 코드/설정/문서와 경량 참조 데이터만 유지한다. |
 
 ### 4.2. Player System
 | Component | Status | Note |
@@ -401,3 +402,4 @@ classDiagram
 | --- | --- | --- |
 | **AoE Heading Sampling** | ✅ Done | AoEAttackPattern의 타겟 속도 샘플링은 Unity 2022 기준 Rigidbody.velocity를 사용한다. |
 | **Editor Assembly Anchor** | ✅ Done | Assets/Editor/EditorAssemblyAnchor.cs를 통해 에디터 전용 어셈블리 생성 경로를 고정. |
+| **URP Global Settings Hygiene** | 🔃 progress | GUID 스캔 기준 미해결 참조가 `Assets/Settings/UniversalRenderPipelineGlobalSettings.asset`에 49건 남아 있어, Unity 에디터에서 URP Global Settings 재생성/재할당 후 확정 커밋이 필요하다. |

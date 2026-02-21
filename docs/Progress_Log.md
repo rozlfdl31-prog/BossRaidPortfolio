@@ -2,6 +2,24 @@
 
 ## 📅 [2월 1주차] 목표: 플레이어 컨트롤러 및 상태 머신
 
+### **2026-02-21 (토: 팀 환경 동기화 - free tier 기준 정책 전환)**
+
+* **오늘 반영한 작업**
+* 저장소 용량 제약(free tier) 대응을 위해 대용량 서드파티 에셋은 Git 수동 임포트 정책으로 전환.
+* `.gitignore`에 다음 경로를 다시 고정:
+  * `Assets/CombatGirlsCharacterPack/`
+  * `Assets/FourEvilDragonsPBR/`
+  * `Assets/UNI VFX/`
+* 대용량 커밋을 히스토리에서 제거해 저장소 팽창을 방지.
+* 용량 증가 없이 유지 가능한 참조 복구만 보존:
+  * `BossAnimator.controller` Locomotion BlendTree 누락 모션 GUID를 `idle01.fbx` 기준으로 재바인딩.
+  * `ProjectSettings/EditorBuildSettings.asset`의 Input Actions GUID를 `PlayerControlInput.inputactions` GUID로 교체.
+
+* **기술적 고려**
+* Unity 참조는 GUID 기반이므로 `.meta`만 커밋하고 원본 에셋을 누락하면 복구되지 않는다.
+* free tier 유지가 우선인 경우, “레포 경량화 + 팀 공통 버전 수동 임포트 + 체크리스트 검증” 조합이 현실적인 운영 방식이다.
+* 에셋 미포함 정책에서도 컨트롤러/설정 내 고아 GUID는 사전에 정리해 `Missing` 노이즈를 줄여야 팀 동기화 비용이 내려간다.
+
 ### **2026-02-21 (토: Player Animator 모션 복구 및 누락 가드 추가)**
 
 * **오늘 반영한 작업**

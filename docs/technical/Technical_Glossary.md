@@ -35,6 +35,10 @@
 * **Feature Toggle (기능 토글)**: 개발 중인 기능이나 특정 로직(예: 보스 추적, 회전)을 인스펙터 체크박스 하나로 켜고 끌 수 있게 하여, 테스트 효율을 높이고 버그 추적을 용이하게 하는 개발 패턴.
 * **Planar Distance Gate (평면 거리 게이트)**: Boss의 상태 전환 거리 판정에서 높이(Y)를 제외하고 XZ 평면 거리만 사용해 점프/지형 높이 차로 인한 오판정을 줄이는 규칙.
 * **Chase Hysteresis (추적 히스테리시스)**: 단일 공격 사거리 임계값 대신 `AttackRange`(해제)와 `AttackRange + ChaseReengageBuffer`(재진입) 이중 임계값을 두어 Walk/Idle 경계 지터를 완화하는 기법.
+* **Asset+Meta Pair Rule (에셋-메타 쌍 규칙)**: Unity 에셋은 파일만 커밋하면 참조가 보장되지 않는다. 참조 안정성을 위해 원본 에셋과 해당 `.meta`를 반드시 쌍으로 버전관리하는 규칙.
+* **Dependency Closure Tracking (의존성 폐쇄 추적)**: 특정 씬/프리팹이 참조하는 직접/간접 에셋을 그래프 형태로 확장해 누락 없이 추적 세트를 산출하는 방식.
+* **GUID Orphan Reference (GUID 고아 참조)**: YAML에 남아 있는 GUID가 로컬/레포 어디에도 존재하지 않아 `Missing`으로 해석되는 참조 상태.
+* **Manual Import Baseline (수동 임포트 기준선)**: 저장소 용량 제약이 있을 때 대용량 서드파티 에셋은 Git에서 제외하고, 팀원이 동일 버전을 수동 임포트해 작업 기준선을 맞추는 운영 규칙.
 
 ## 4. Optimization (Performance)
 
@@ -75,6 +79,7 @@
 * **FlyForward Fallback (비행 전진 폴백)**: `FlyForward` 상태가 Animator에 없을 때 지상 `Locomotion`으로 떨어지지 않고 `FlyIdle`로 폴백해 공중 연출을 연속 유지하는 보정 규칙.
 * **Post-Fire Recovery Window (발사 후 복귀 윈도우)**: Projectile 패턴에서 마지막 발사 직후 곧바로 Combat으로 복귀하지 않고 최소 대기(`postFireRecoveryDuration`) 및 애니메이션 진행률(`exitNormalizedTime`) 조건을 만족할 때 전환하는 안정화 구간.
 * **Exit Normalized Time (종료 정규화 시점)**: 공격 애니메이션이 어느 진행률에서 종료 판정을 허용할지 정의하는 기준값. `AnimatorStateInfo.normalizedTime`과 비교해 패턴 복귀 타이밍을 제어한다.
+* **URP Global Settings Regeneration (URP 글로벌 설정 재생성)**: 패키지 버전 전환이나 GUID 드리프트로 `UniversalRenderPipelineGlobalSettings.asset` 참조가 깨졌을 때, Unity 에디터에서 글로벌 설정 자산을 재생성/재할당해 참조 정합성을 회복하는 절차.
 
 ## 7. Design Patterns
 

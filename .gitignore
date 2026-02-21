@@ -74,23 +74,17 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
-# External Assets (Large binary files)
-/[Aa]ssets/CombatGirlsCharacterPack/
-/[Aa]ssets/CombatGirlsCharacterPack.meta
-
-# Dragon Asset
-/[Aa]ssets/FourEvilDragonsPBR/
-/[Aa]ssets/FourEvilDragonsPBR.meta
-
 # IDE and Tooling
 .vscode/
 .gemini/
 
+/[Aa]ssets/CombatGirlsCharacterPack/
+/[Aa]ssets/CombatGirlsCharacterPack.meta
+/[Aa]ssets/FourEvilDragonsPBR/
+/[Aa]ssets/FourEvilDragonsPBR.meta
+/Assets/UNI VFX/
+/Assets/UNI VFX.meta
+
 /[Aa]ssets/[Ff]ree [Ff]ire [Vv][Ff][Xx] [Uu][Rr][Pp]/
 /[Aa]ssets/[Ff]ree [Ff]ire [Vv][Ff][Xx] [Uu][Rr][Pp].meta
 
-/[Aa]ssets/[Ff]our[Ee]vil[Dd]ragons[Pp][Bb][Rr]/
-/[Aa]ssets/[Cc]ombat[Gg]irls[Cc]haracter[Pp]ack/
-
-/Assets/UNI VFX
-/Assets/UNI VFX.meta
