@@ -88,3 +88,7 @@ crashlytics-build.properties
 /[Aa]ssets/[Ff]ree [Ff]ire [Vv][Ff][Xx] [Uu][Rr][Pp]/
 /[Aa]ssets/[Ff]ree [Ff]ire [Vv][Ff][Xx] [Uu][Rr][Pp].meta
 
+# TextMesh Pro Essentials auto-generated local assets
+/[Aa]ssets/TextMesh Pro/
+/[Aa]ssets/TextMesh Pro.meta
+
