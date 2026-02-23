@@ -132,6 +132,26 @@
 * 환경 변경 시 가장 자주 깨지는 지점(Animator 참조/이벤트)을 에디터 자동 복구로 선제 차단.
 * 에셋 배포와 프로젝트 동작 보장을 분리해 팀 동기화 비용을 낮춤.
 
+### **2026-02-23 (월): 전투 HUD 배치 완료 및 데미지 피드백 경로 연결**
+
+* **오늘 반영한 작업**
+* 전투 UI 레이아웃 배치 완료: 플레이어/보스 HP 바 영역과 고정형 데미지 텍스트 앵커를 화면에 배치하고 이름 라벨 슬롯(`Player`, `Dragon`) 정책을 확정.
+* `CombatHUDController`에 `Health.OnDamageTaken`/`OnDeath` 이벤트 구독을 추가해 플레이어/보스 HP 바를 초기 동기화 + 즉시 갱신하도록 구현.
+* `DamageCaster`에 공격 윈도우 종료 이벤트(`OnAttackWindowResolved`)를 추가해 적중 여부/누적 피해량을 외부로 전달.
+* `PlayerController`에서 `DamageCaster` 이벤트를 구독해 HUD 피드백(`ShowDamageFeedback`)으로 연결하고, 시작 시 HUD 초기화(`Initialize`)와 이름 라벨(`Player`, `Dragon`) 세팅을 적용.
+* 데미지 텍스트 정책 유지: 적중 시 `HIT + 피해량` 표시, 비적중 시 미표시.
+* 고정형 데미지 텍스트 연출 보강: 적중 시 스케일 강조 후 짧은 페이드 아웃으로 자동 숨김 처리.
+* HUD 표시 제어 경로 추가: 전투/연출 상황에서 전체 HUD On/Off가 가능하도록 `ShowHud(bool)` 토글 경로를 정리.
+* 전투 판정 안정화: `DamageCaster`에 0 데미지 윈도우 차단, 상태 전환용 `ForceDisableHitbox()` 추가, `AttackState.Exit()`에서 히트박스 강제 종료 처리.
+* 입력 엣지 보강: `MoveState` 공격 전환을 엣지 트리거로 변경해 게임 시작/포커스 클릭 시 의도치 않은 공격 진입을 완화.
+
+* **기술적 고려**
+* 매 프레임 폴링 대신 `Health`/`DamageCaster` 이벤트 기반으로 HUD를 갱신해 UI 동기화 경로를 단순화하고 불필요한 검사 비용을 줄임.
+* HP 수치 문자열 갱신 대신 Fill 비율(`HealthRatio -> Image.fillAmount`) 중심으로 구성해 해상도/폰트 변화와 무관하게 시인성을 안정화.
+* 공격 윈도우 단위 누적 피해량을 `DisableHitbox` 시점에 1회 발행해 콤보/다중 타격에서도 피드백 기준 시점을 일관되게 유지.
+* 연출 코루틴은 이벤트 발생 시에만 실행되도록 제한해 평시 프레임 루프 부담을 늘리지 않도록 설계.
+* `Health.TakeDamage`에서 0 이하 데미지를 무시하도록 가드해 피격 반응 이벤트 오염(무데미지 히트 반응)을 차단.
+
 ## 📈 2월 마일스톤: 싱글플레이 로직 완성 (Capsule vs Cube)
 
 > **목표**: 클라이언트 구축
@@ -187,8 +207,12 @@
 
 ### 4주차: 보스 행동 패턴 & 시스템 최적화 & 게임 루프 (The Logic)
 #### 시스템 최적화 & 게임 루프 (The Logic)
-- [ ] **UI 시스템**: HP 바, 보스 페이즈 알림 등 코드 제어.
+- [x] **UI 시스템**: 보스/플레이어 HP 바와 고정형 데미지 피드백을 이벤트 기반으로 코드 제어 + HUD 배치 완료.
 - [ ] **게임 매니저**: 시작 → 전투 → 페이즈 전환 → 승리/패배 흐름 제어.
+- [x] **HUD 골격 배치**: `CombatHUDController` + 이름 라벨(`Player`, `Dragon`) + 고정형 데미지 텍스트 앵커 구성.
+- [x] **HP 바 자동 갱신 경로**: `Health.OnDamageTaken`/`OnDeath` 기반 UI 갱신 연결.
+- [x] **공격 윈도우 결과 이벤트**: `DamageCaster.OnAttackWindowResolved` 추가 및 `PlayerController` HUD 연결.
+- [ ] **실플레이 검증**: 피격 1회/콤보/사망 직전 케이스에서 중복 이벤트 및 UI 갱신 타이밍 점검.
 ---
 
 #### 🚧 폴리싱 

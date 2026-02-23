@@ -69,7 +69,19 @@ classDiagram
 
     class LocalInputProvider { +GetInput() }
     class PlayerVisual { +Animator Animator }
-    class DamageCaster { +EnableHitbox(int) +DisableHitbox() }
+    class CombatHUDController {
+        +Initialize(Health, Health)
+        +SetPlayerName(string)
+        +SetBossName(string)
+        +SetPlayerTorso(Sprite)
+        +ShowHud(bool)
+        +ShowDamageFeedback(bool, int)
+    }
+    class DamageCaster {
+        +OnAttackWindowResolved Action~bool,int~
+        +EnableHitbox(int)
+        +DisableHitbox()
+    }
     class Health {
         +CurrentHP int
         +OnDamageTaken Action
@@ -92,7 +104,8 @@ classDiagram
 
     PlayerController --> IInputProvider : uses
     PlayerController --> PlayerVisual : controls
-    PlayerController --> DamageCaster : controls
+    PlayerController --> DamageCaster : controls/subscribes
+    PlayerController --> CombatHUDController : updates
     PlayerController --> Health : owns
 
     PlayerBaseState --|> BaseState : extends
@@ -357,7 +370,7 @@ classDiagram
 | **Dash Logic** | ✅ Done | Cooldown 및 Edge-triggering 기능 포함 구현 완료. |
 | **Jump Logic** | ✅ Done | `JumpState` 구현 완료. 현재 게임 디자인 기준 점프 입력 전환은 비활성(주석/F10 유지) 상태이며 필요 시 재활성 가능. |
 | **Camera Logic** | ✅ Done | CameraRoot 분리 및 로컬 회전 구현 완료. |
-| **Attack Logic** | ✅ Done | `AttackState` 구현 완료. 콤보/캔슬/개별 데미지 지원. |
+| **Attack Logic** | ✅ Done | `AttackState` 구현 완료. 콤보/캔슬/개별 데미지 지원. 상태 전환 시 `AttackState.Exit()`에서 히트박스를 강제 종료해 잔존 판정을 방지하며, `DamageCaster`는 0 데미지 윈도우를 무시한다. |
 | **Hit/Damage System** | ✅ Done | `IDamageable`, `DamageCaster`, `Health` 구현 완료. |
 | **Asset Integration** | ✅ Done | `PlayerAnimator`의 `Hit/Attack1/2/3/Die` 상태 모션 재연결 완료(2026-02-21). |
 | **Environment Fix Guard (환경 오류 복구)** | ✅ Done | `Assets/Editor/PlayerAnimatorGuard.cs`로 환경 변경 시 발생하는 Animator 참조 오류를 자동 복구/검증한다. 필수 state/motion + 파라미터(`Speed` Float, `Hit` Trigger) 누락 점검, 모든 Layer + 중첩 StateMachine 재귀 순회, Locomotion BlendTree 자식 모션 검증, 중복 상태명 경고, 로드/임포트/이동/메뉴 경로를 지원하며 `Hit` 상태명은 `PlayerController.ANIM_STATE_HIT` 상수를 공용 참조한다. 추가로 `Attack1/2/3` 클립의 `OnHitStart/OnHitEnd` 이벤트 자동 보정 및 누락/순서 검증, `Tools/Validation/Fix Player Attack Events` 메뉴를 포함한다. |
@@ -374,7 +387,7 @@ classDiagram
 ### 4.4. User Interface (UI)
 | Component | Status | Note |
 | --- | --- | --- |
-| **UI System** | ⬜ Todo | 플레이어 HUD, Boss 체력바, 메뉴 등 구현 필요. |
+| **UI System** | ✅ Done | 전투 HUD 배치 + `CombatHUDController` 연동 완료. `Health.OnDamageTaken/OnDeath` 이벤트로 플레이어/보스 HP Fill을 즉시 갱신하고, `DamageCaster.OnAttackWindowResolved` 결과를 `HIT + 피해량` 고정형 피드백(스케일 강조 후 짧은 페이드 아웃)으로 표시한다. 이름 라벨(`Player`, `Dragon`) 및 `ShowHud(bool)` 기반 전체 표시 제어를 포함한다. |
 
 ### 4.5. Game Logic & Flow
 | Component | Status | Note |

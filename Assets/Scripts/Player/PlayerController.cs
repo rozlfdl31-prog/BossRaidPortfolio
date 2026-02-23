@@ -4,6 +4,7 @@ using Core.Common.Interfaces;
 using Core.Common.Patterns;
 using Core.Player;
 using Core.Player.States;
+using Core.UI;
 using UnityEngine;
 
 [RequireComponent(typeof(CharacterController))]
@@ -35,6 +36,12 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable
 
     [Header("Combat Settings")]
     [SerializeField] private float invincibilityDuration = 1.0f;
+
+    [Header("HUD Settings")]
+    [SerializeField] private CombatHUDController _combatHUD;
+    [SerializeField] private Health _bossHealthForHUD;
+    [SerializeField] private string _playerDisplayName = "Player";
+    [SerializeField] private string _bossDisplayName = "Dragon";
 
     // Animation Constants
     public const string ANIM_PARAM_SPEED = "Speed";
@@ -98,6 +105,13 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable
             _health.OnDeath += HandleDeath;
         }
 
+        if (_damageCaster != null)
+        {
+            _damageCaster.SetOwner(gameObject);
+            _damageCaster.ForceDisableHitbox();
+            _damageCaster.OnAttackWindowResolved += HandleAttackWindowResolved;
+        }
+
         // FSM 초기화 (제네릭 StateMachine)
         _stateMachine = new StateMachine<PlayerBaseState>();
         MoveState = new MoveState(this);
@@ -115,11 +129,18 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable
             _health.OnDamageTaken -= HandleDamage;
             _health.OnDeath -= HandleDeath;
         }
+
+        if (_damageCaster != null)
+        {
+            _damageCaster.OnAttackWindowResolved -= HandleAttackWindowResolved;
+        }
     }
 
     private void Start()
     {
         _stateMachine.ChangeState(MoveState);
+        _damageCaster?.ForceDisableHitbox();
+        InitializeCombatHUD();
     }
 
     private void Update()
@@ -176,10 +197,43 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable
         _stateMachine.ChangeState(DeadState);
     }
 
+    private void HandleAttackWindowResolved(bool isHit, int totalDamage)
+    {
+        _combatHUD?.ShowDamageFeedback(isHit, totalDamage);
+    }
+
+    private void InitializeCombatHUD()
+    {
+        if (_combatHUD == null)
+        {
+            _combatHUD = FindObjectOfType<CombatHUDController>();
+            if (_combatHUD == null) return;
+        }
+
+        if (_bossHealthForHUD == null)
+        {
+            Core.Boss.BossController bossController = FindObjectOfType<Core.Boss.BossController>();
+            if (bossController != null)
+            {
+                _bossHealthForHUD = bossController.GetComponent<Health>();
+            }
+        }
+
+        _combatHUD.Initialize(_health, _bossHealthForHUD);
+        _combatHUD.SetPlayerName(_playerDisplayName);
+        _combatHUD.SetBossName(_bossDisplayName);
+    }
+
     // Animation Event Callbacks
     public void OnHitStart()
     {
-        if (_damageCaster != null) _damageCaster.EnableHitbox((int)CurrentAttackDamage);
+        if (_damageCaster == null) return;
+        if (_stateMachine == null || _stateMachine.CurrentState != AttackState) return;
+
+        int damage = Mathf.RoundToInt(CurrentAttackDamage);
+        if (damage <= 0) return;
+
+        _damageCaster.EnableHitbox(damage);
     }
 
     public void OnHitEnd()
