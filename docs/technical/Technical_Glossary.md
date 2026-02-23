@@ -29,6 +29,11 @@
 * **Coupling (결합도)**: 두 모듈 간의 의존 정도. `Strong Coupling`은 변경에 취약하고, `Weak Coupling`은 인터페이스 등을 통해 유연하다.
 * **Dependency Injection (의존성 주입)**: 객체가 의존하는 다른 객체를 직접 생성(`new`)하지 않고 외부에서 주입받아 결합도를 낮추는 패턴.
 * **Visual Separation (비주얼 분리)**: 핵심 로직(`Controller`)과 시각적 표현(`Visual`)을 서로 다른 클래스로 분리하여, 로직 변경이 리소스(애니메이션 등)에 영향을 주지 않도록 하는 설계 패턴.
+* **CombatHUDController**: 전투 HUD 전용 컨트롤러. 플레이어/보스 HP 바, 이름 라벨, 고정형 데미지 텍스트를 한 컴포넌트에서 제어한다.
+* **HUD 이름 라벨 정책**: `Text_PlayerHP`/`Text_BossHP` 슬롯을 체력 수치 대신 이름 라벨(`Player`, `Dragon`) 표시 용도로 사용하는 UI 정책.
+* **HUD 부트스트랩 바인딩**: `PlayerController.InitializeCombatHUD()`에서 HUD 참조/보스 `Health`를 초기 탐색한 뒤 `Initialize`와 이름 라벨 세팅까지 한 번에 수행하는 시작 절차.
+* **HP Fill 정규화 업데이트**: `HealthRatio`를 `Image.fillAmount`로 반영해 체력 UI를 갱신하는 방식. 수치 텍스트 갱신 없이도 이벤트 기반으로 즉시 동기화할 수 있다.
+* **HUD 가시성 토글**: `CombatHUDController.ShowHud(bool)`로 플레이어/보스 체력 UI와 이름 라벨, 데미지 피드백 표시를 일괄 On/Off 하는 제어 패턴.
 * **Magic String (매직 스트링)**: 코드 내에 직접 하드코딩된 문자열 리터럴. 오타 위험이 크므로 `const` 상수로 관리해야 함.
 * **Coroutine Cleanup**: `StopAllCoroutines()`를 호출하여 진행 중인 비동기 작업(무적 타이머 등)을 강제 중단하는 기법. 상태 전환(사망 등) 시 잔존 코루틴이 예상치 못한 부작용을 일으키는 것을 방지.
 * **Generic State Machine (제네릭 상태 머신)**: `StateMachine<T>` 형태로 구현하여, 플레이어와 보스가 동일한 상태 관리 로직을 공유하면서도 각자의 상태 타입(`PlayerState` vs `BossState`)을 안전하게 사용할 수 있게 하는 기법.
@@ -57,6 +62,10 @@
 * **Input Buffer (선입력)**: 애니메이션 종료 직전에 입력된 명령을 저장해두었다가, 동작 가능 시점에 즉시 실행하여 조작감을 향상시키는 시스템.
 * **Animation Cancel (모션 캔슬)**: 현재 진행 중인 동작(특히 후딜레이)을 중단하고 대시 등의 긴급 회피 동작으로 즉시 전환하는 기법.
 * **IDamageable**: 대상을 특정하지 않고 데미지 명령(`TakeDamage`)만 내릴 수 있게 해주는 추상화 인터페이스.
+* **Attack Window Result Event**: 공격 판정 시작(`EnableHitbox`)부터 종료(`DisableHitbox`)까지 누적된 결과를 1회 발행하는 이벤트. 현재 `DamageCaster.OnAttackWindowResolved(bool isHit, int totalDamage)`로 구현되어 HUD 피드백에 사용된다.
+* **Fixed Damage Feedback (고정형 데미지 피드백)**: 월드 위치를 추적하지 않고 HUD의 고정 앵커에서 `HIT + 피해량`만 표시하는 피드백 방식. 현재는 적중 시 확대 후 짧은 페이드 아웃으로 마무리한다.
+* **Ghost Hitbox Guard (잔존 히트박스 가드)**: 상태 전환/초기화 시 `ForceDisableHitbox()`와 `AttackState.Exit()`를 통해 공격 판정이 남지 않도록 강제 정리하는 보호 규칙.
+* **Zero-Damage Filter (무데미지 필터)**: `DamageCaster.EnableHitbox`와 `Health.TakeDamage`에서 0 이하 데미지를 무시해 피격 이벤트/애니메이션 오작동을 방지하는 안전 장치.
 * **Animation Event Bridge**: 애니메이터의 타임라인 이벤트를 코드 로직(`PlayerController` 등)으로 연결해주는 중계 클래스.
 * **IBossAttackPattern**: 보스 공격 패턴 인터페이스 (Strategy Pattern 적용). `Enter`/`Update`/`Exit` 메서드를 정의하여 `BossAttackState`가 구체 패턴을 몰라도 실행할 수 있게 함.
 * **BasicAttackPattern**: `IBossAttackPattern`의 기본 구현체. 보스의 근접 공격(애니메이션 재생 + DamageCaster 활성화 + 타이머 기반 종료)을 측술화.

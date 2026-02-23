@@ -1,4 +1,5 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using Core.Interfaces;
 using UnityEngine;
 
@@ -8,8 +9,15 @@ namespace Core.Combat
     /// 무기(검)에 부착되어 실제 데미지 판정을 수행하는 클래스.
     /// Physics.OverlapSphereNonAlloc을 사용하여 GC 없는 최적화된 충돌 감지를 수행합니다.
     /// </summary>
+    [ExecuteAlways]
     public class DamageCaster : MonoBehaviour
     {
+        /// <summary>
+        /// 한 번의 공격 윈도우가 닫힐 때 호출되는 결과 이벤트.
+        /// bool: 적중 여부, int: 누적 피해량
+        /// </summary>
+        public event Action<bool, int> OnAttackWindowResolved;
+
         [Header("Settings")]
         [SerializeField] private float _radius = 1.0f;
         [SerializeField] private LayerMask _targetLayer;
@@ -23,6 +31,8 @@ namespace Core.Combat
         private Collider[] _hitResults;
         private bool _isCasting = false;
         private int _damagePayload = 0;
+        private int _attackWindowTotalDamage = 0;
+        private bool _attackWindowOpen = false;
 
         // 한 번의 공격(Enable~Disable 기간) 동안 중복 피격을 방지하기 위한 Set
         private HashSet<int> _hitTargets = new HashSet<int>();
@@ -35,15 +45,39 @@ namespace Core.Combat
                 _castCenter = this.transform;
         }
 
+        private void OnValidate()
+        {
+            // 에디터에서 참조 누락 시에도 기즈모 중심이 사라지지 않도록 보정한다.
+            if (_castCenter == null)
+            {
+                _castCenter = transform;
+            }
+
+            if (_maxTargets < 1)
+            {
+                _maxTargets = 1;
+            }
+        }
+
         /// <summary>
         /// 공격 판정을 시작합니다. (Animation Event에서 호출)
         /// </summary>
         /// <param name="damage">이번 공격의 데미지</param>
         public void EnableHitbox(int damage)
         {
+            // 0 이하 데미지는 유효한 타격 윈도우로 취급하지 않는다.
+            if (damage <= 0)
+            {
+                ResetCastingState();
+                return;
+            }
+
             _isCasting = true;
             _damagePayload = damage;
             _hitTargets.Clear();
+
+            _attackWindowTotalDamage = 0;
+            _attackWindowOpen = true;
         }
 
         /// <summary>
@@ -52,6 +86,22 @@ namespace Core.Combat
         public void DisableHitbox()
         {
             _isCasting = false;
+
+            if (!_attackWindowOpen) return;
+
+            bool isHit = _attackWindowTotalDamage > 0;
+            OnAttackWindowResolved?.Invoke(isHit, _attackWindowTotalDamage);
+
+            _attackWindowOpen = false;
+            _attackWindowTotalDamage = 0;
+        }
+
+        /// <summary>
+        /// 상태 전환/초기화 시 잔존 공격 판정을 강제로 정리한다.
+        /// </summary>
+        public void ForceDisableHitbox()
+        {
+            ResetCastingState();
         }
 
         public void SetOwner(GameObject owner)
@@ -63,6 +113,11 @@ namespace Core.Combat
         private void FixedUpdate()
         {
             if (!_isCasting) return;
+            if (_damagePayload <= 0)
+            {
+                ResetCastingState();
+                return;
+            }
 
             // NonAlloc을 사용하여 가비지 컬렉션 방지
             int hitCount = Physics.OverlapSphereNonAlloc(_castCenter.position, _radius, _hitResults, _targetLayer);
@@ -102,6 +157,7 @@ namespace Core.Combat
                     if (_ownerInstanceID != 0 && realTargetID == _ownerInstanceID) continue;
 
                     target.TakeDamage(_damagePayload);
+                    _attackWindowTotalDamage += _damagePayload;
                     _hitTargets.Add(realTargetID); // 실제 대상 ID 등록
 
                     // 디버그 로그 (필요시 주석 해제)
@@ -118,6 +174,25 @@ namespace Core.Combat
 
             Vector3 center = _castCenter != null ? _castCenter.position : transform.position;
             Gizmos.DrawWireSphere(center, _radius);
+        }
+
+        private void OnDrawGizmosSelected()
+        {
+            if (!_showGizmos) return;
+
+            // 선택 시에는 항상 선명한 색으로 그려 중심 확인을 쉽게 한다.
+            Gizmos.color = _gizmoColor;
+            Vector3 center = _castCenter != null ? _castCenter.position : transform.position;
+            Gizmos.DrawWireSphere(center, _radius);
+        }
+
+        private void ResetCastingState()
+        {
+            _isCasting = false;
+            _damagePayload = 0;
+            _attackWindowOpen = false;
+            _attackWindowTotalDamage = 0;
+            _hitTargets.Clear();
         }
     }
 }

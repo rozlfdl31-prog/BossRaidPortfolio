@@ -31,6 +31,7 @@ namespace Core.Combat
         public void TakeDamage(int damage)
         {
             if (IsDead || _isInvincible) return;
+            if (damage <= 0) return;
 
             _currentHealth -= damage;
             Debug.Log($"{gameObject.name} took {damage} damage. HP: {_currentHealth}/{_maxHealth}");
