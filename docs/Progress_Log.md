@@ -170,17 +170,33 @@
 * 게임오버 판정은 사망 이벤트 수집 후 1회 확정 플래그로 처리해 중복 결과 처리/중복 UI 노출을 방지.
 * 문서 측면에서는 우선순위 마커와 작업 태그를 고정 규칙으로 두어 버그/폴리싱 백로그의 정렬 기준을 명시.
 
-### **2026-02-26 (목): TitleScene 진입 경로 연결**
+### **2026-02-26 (목): TitleScene 진입 경로, 결과 검증, 보스 감지 정책 정리**
 
 * **오늘 반영한 작업**
+* **TitleScene 진입 경로 연결**
 * `TitleScene` 하이어라키를 기준으로 `TitleFlow` 오브젝트를 추가하고 시작 입력 진입 지점을 분리.
 * `TitleSceneController`를 신규 구현해 `Input.anyKeyDown` 입력 시 `SceneLoader.Load(GameSceneId.GamePlay)`를 호출하도록 연결.
 * 오입력 방지를 위해 `inputLockDuration`(기본 0.1초) 가드를 두고, 첫 입력 이후 중복 전환을 차단.
 * Build Settings 씬 순서를 `TitleScene -> LoadingScene -> GamePlayScene`으로 확정.
+* **GameManager 동시 사망 결과 검증**
+* `GamePlayScene_TestResult` 테스트 씬을 추가해 결과 판정 전용 검증 환경을 분리.
+* 플레이어/보스 `Health`를 1로 세팅하고 `SimultaneousDeathTest`(`Assets/Scripts/Test/SimultaneousDeathTest.cs`)로 동일 프레임 사망 트리거를 구성.
+* `K` 입력으로 플레이어/보스를 같은 프레임에 동시에 사망시키는 시나리오를 반복 검증.
+* `GameManager` 결과 UI가 `Victory`로 출력되는 것을 확인하고, GameOver 상태에서 `Enter` 재시작 입력이 정상 동작하는지 확인.
+* **보스 감지/스크림 정책 정리**
+* `BossIdleState`, `BossSearchingState`의 Combat 전환 조건을 `IsTargetInDetectionRange()`(수평 거리 기준)로 통일해, 플레이어가 걷기 진입해도 스크림(페이즈 인트로)이 즉시 발동되도록 수정.
+* `BossController`에 `IsTargetInDetectionRange()` 헬퍼를 추가해 감지 반경 판정을 중앙화.
+* 최종적으로 미사용 `CheckLineOfSight()` 메서드를 제거하고, 감지 설정의 `obstacleMask` 및 `OnDrawGizmosSelected()` LOS Linecast 디버그 라인을 제거.
+* 보스 감지 정책을 장애물/시야선과 무관한 거리 단일 감지 규칙으로 확정.
+* `System_Blueprint`, `Technical_Glossary` 문서를 최신 정책 기준으로 동기화.
 
 * **기술적 고려**
 * 타이틀 입력 수집 책임을 `TitleSceneController`로 분리해 `SceneLoader`/`LoadingSceneController`의 기존 책임(전환 관리/비동기 로딩)을 유지.
 * 타이틀 진입 시 `SceneLoader.CancelPendingTransition()`으로 정적 전환 상태를 초기화해 이전 플레이 세션 잔존 상태를 방지.
+* 현재 `GameManager.LateUpdate()`는 `_bossDead`를 우선 검사하므로 동시 사망 시 `Victory`가 확정된다.
+* 실플레이에서는 애니메이션 이벤트/`FixedUpdate` 타이밍으로 프레임 차이가 생길 수 있어, 동일 프레임 강제 테스트와 일반 전투 테스트를 분리해 검증해야 한다.
+* 감지 정책을 단순화하면 레이어/콜라이더 구성에 따른 오탐·미탐 변동이 줄고, QA 재현성이 높아진다.
+* 반대로 플레이어가 장애물 뒤에 숨는 스텔스 플레이는 의도적으로 비지원이 되므로, 추후 기획 변경 시 감지 계층(거리 + 시야선)을 다시 설계해야 한다.
 
 ## 📈 2월 마일스톤: 싱글플레이 로직 완성 (Capsule vs Cube)
 
@@ -243,13 +259,13 @@
 - [x] **공격 윈도우 결과 이벤트**: `DamageCaster.OnAttackWindowResolved` 추가 및 `PlayerController` HUD 연결.
 - [x] **실플레이 검증**: 피격 1회/콤보/사망 직전 케이스에서 중복 이벤트 및 UI 갱신 타이밍 점검.
 - [x] **게임 매니저(시작 → 전투 페이즈 전환)**: 구현 완료 (`TitleSceneController` + `SceneLoader` + `LoadingSceneController` 경유 전투 진입 경로 구성), 실플레이 테스트 미실시.
-- [x] **게임 매니저(승리/패배)**: 구현 완료 (`GameManager` 결과 판정/UI/재시작 입력 처리), 동시 쓰러질 때 테스트 미실시.
+- [x] **게임 매니저(승리/패배)**: 구현 완료 (`GameManager` 결과 판정/UI/재시작 입력 처리), 동시 쓰러질 때 `Victory` 출력 테스트 완료 (`GamePlayScene_TestResult` + `SimultaneousDeathTest`).
 ---
 
 #### 🚧 버그 
 
 - [x] 🔴**(플레이어)대쉬 방향 수정**: 공격 방향이 아닌 키보드 입력 방향으로 대쉬.
-- [ ] 🔴**(보스) 스크림 애니메이션 수정**: 범위 안에서 플레이어가 걸어오면 스크림 애니메이션 발동.
+- [x] 🔴**(보스) 스크림 애니메이션 수정**: 범위 안에서 플레이어가 걸어오면 스크림 애니메이션 발동.
 - [ ] 🔴**(보스) attack1 범위 수정**: 공격 범위 넓게 수정
 - [ ] 🔴**(보스) attack2 도약 회귀 수정**: 도약을 하면 도약 전 위치로 돌아오지 않고 도약한 곳으로 고정.
 - [ ] 🟢**(플레이어, UI)**: 3번째 공격 UI가 1초 느리게 나온다. 바로 바로 나오는 UI로 수정.
@@ -273,6 +289,9 @@
 - [x] 🟢**(UI) 움직임 추가**: Press Any Key 깜빡깜빡 효과 추가. fade in & out.
 - [ ] 🟢**지형 애셋 추가**: HQ Apocalyptic Environment 이 애셋을 이용해서 대체
 - [ ] 🟢**글씨 다르게 하기**: 글씨 다르게 하기
+- [ ] 🟡**(플레이어, 카메라)리팩토링**: 좌우 이동할 때 카메라 턱턱 걸리지 않고 부드럽게 움직이게 하기.
+- [ ] 🟢**(보스, UI)리팩토링**: 플레이어가 detect range 안에 있을 때 보스의 체력 UI를 나타나게 하기
+- [ ] 🟢**(플레이어, UI)리팩토링**: HUD 끄기
 
 
 

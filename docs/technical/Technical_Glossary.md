@@ -37,6 +37,8 @@
 * **Title Scene**: 게임 시작 시점 전용 씬. `TitleSceneController`가 아무 키 입력을 감지해 전투 목적지(`GamePlay`)를 `SceneLoader`에 요청한다.
 * **Loading Scene**: 씬 전환 중 비동기 로드를 담당하는 중간 씬. `SceneLoader`가 목적지 씬을 예약하고 `LoadingSceneController`가 진행률 UI와 활성화 타이밍을 제어한다.
 * **Input Lock Duration (입력 잠금 시간)**: 타이틀 진입 직후의 잔존 키 입력으로 즉시 전환되는 문제를 막기 위한 짧은 대기 구간. 현재 `TitleSceneController`의 `_inputLockDuration`으로 제어한다.
+* **SimultaneousDeathTest (동시 사망 테스트 컴포넌트)**: `GamePlayScene_TestResult`에서 동일 프레임 사망을 재현하기 위해, `K` 입력 시 플레이어/보스 `Health.TakeDamage`를 같은 프레임에 호출하는 테스트 스크립트(`Assets/Scripts/Test/SimultaneousDeathTest.cs`).
+* **동시 사망 판정 우선순위 (GameManager)**: `GameManager.LateUpdate()`가 `_bossDead`를 먼저 검사해 결과를 확정하는 규칙. 플레이어와 보스가 동시에 사망하면 `Victory`를 반환한다.
 * **Magic String (매직 스트링)**: 코드 내에 직접 하드코딩된 문자열 리터럴. 오타 위험이 크므로 `const` 상수로 관리해야 함.
 * **Coroutine Cleanup**: `StopAllCoroutines()`를 호출하여 진행 중인 비동기 작업(무적 타이머 등)을 강제 중단하는 기법. 상태 전환(사망 등) 시 잔존 코루틴이 예상치 못한 부작용을 일으키는 것을 방지.
 * **Generic State Machine (제네릭 상태 머신)**: `StateMachine<T>` 형태로 구현하여, 플레이어와 보스가 동일한 상태 관리 로직을 공유하면서도 각자의 상태 타입(`PlayerState` vs `BossState`)을 안전하게 사용할 수 있게 하는 기법.
@@ -44,6 +46,7 @@
 * **Priority Marker (우선순위 마커)**: 작업 목록의 중요도를 일관되게 표시하기 위한 표기 규칙. `🔴(1순위)`, `🟡(2순위)`, `🟢(3순위)` 순으로 관리한다.
 * **Task Tag (작업 태그)**: 작업 대상/영역을 괄호로 명시하는 표기 방식. `(플레이어)`, `(보스)`, `(플레이어, UI)`처럼 단일 또는 복수 도메인으로 표기한다.
 * **Planar Distance Gate (평면 거리 게이트)**: Boss의 상태 전환 거리 판정에서 높이(Y)를 제외하고 XZ 평면 거리만 사용해 점프/지형 높이 차로 인한 오판정을 줄이는 규칙.
+* **Range-Only Detection Trigger (거리 단일 감지 트리거)**: Idle/Searching에서 Combat(스크림 인트로) 진입을 감지 반경(`IsTargetInDetectionRange`)만으로 판정하는 규칙. 장애물/시야선(LOS) 여부와 무관하게 거리 조건만 충족하면 전투 전환이 발생한다.
 * **Chase Hysteresis (추적 히스테리시스)**: 단일 공격 사거리 임계값 대신 `AttackRange`(해제)와 `AttackRange + ChaseReengageBuffer`(재진입) 이중 임계값을 두어 Walk/Idle 경계 지터를 완화하는 기법.
 * **Asset+Meta Pair Rule (에셋-메타 쌍 규칙)**: Unity 에셋은 파일만 커밋하면 참조가 보장되지 않는다. 참조 안정성을 위해 원본 에셋과 해당 `.meta`를 반드시 쌍으로 버전관리하는 규칙.
 * **Dependency Closure Tracking (의존성 폐쇄 추적)**: 특정 씬/프리팹이 참조하는 직접/간접 에셋을 그래프 형태로 확장해 누락 없이 추적 세트를 산출하는 방식.

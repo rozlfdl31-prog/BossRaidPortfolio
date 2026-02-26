@@ -153,6 +153,7 @@ classDiagram
         +Transform ProjectileSpawnPoint
         +SetLocomotionVisualSuppressed(bool)
         +GetPlanarDistanceToTarget() float
+        +IsTargetInDetectionRange() bool
         +GetPlanarDistance(Vector3, Vector3) float
         +Update()
         +MoveRaw(Vector3, float)
@@ -382,6 +383,7 @@ classDiagram
 * `moveDir`: **Character Body** 회전 및 이동용 (키보드 입력).
 * 캐릭터 몸통은 카메라가 바라보는 방향(`cameraRoot.forward`)을 기준으로 이동 벡터를 변환해야 한다.
 * **Boss Planar Distance Rule**: Boss의 감지/추적/공격 사거리 판정은 Y축을 제외한 수평(XZ) 거리 기준으로 계산한다.
+* **Boss Detection Trigger Rule**: Idle/Searching에서 Combat 전환(스크림 인트로 진입)은 `IsTargetInDetectionRange()` 기준으로 즉시 수행한다. 현재 보스 감지는 장애물/시야선(LOS) 판정을 사용하지 않는다.
 * **Boss Chase Hysteresis**: `AttackRange` 단일 임계값 대신 `AttackRange + ChaseReengageBuffer` 재진입 구간을 사용해 경계 왕복 지터를 완화한다.
 
 
@@ -427,7 +429,7 @@ classDiagram
 | Component | Status | Note |
 | --- | --- | --- |
 | **Boss Logic (FSM)** | ✅ Done | `BossController` 상태 머신 (Idle, Combat, Searching, Dead) |
-| **Boss Sensors** | ✅ Done | `CheckLineOfSight` (Raycast) 및 거리 감지 로직 |
+| **Boss Sensors** | ✅ Done | `IsTargetInDetectionRange`(XZ 거리 기반) 단일 규칙으로 Idle/Searching 전투 진입을 처리한다. 장애물 LOS 센서는 제거됨 |
 | **Boss Navigation** | ✅ Done | `MoveTo` (추적 이동) 및 `RotateTowards` (회전) 로직 + AoE 공중 연출 중 Locomotion 시각 잠금 가드 + `ChaseReengageBuffer` 기반 히스테리시스 추적 |
 | **Boss Visuals** | ✅ Done | 구조 분리 및 Dragon Asset(Animator/BlendTree) 통합 완료. `PlayFlyForward` 폴백을 비행 계열로 정리해 Walk 혼입 방지. |
 | **Boss Combat** | 🔃 progress | `Pattern 1`(Basic), `Pattern 2`(Lunge), `Pattern 3`(Projectile: Flame Attack + Homing + Vertical Follow + VFX create/hit + hitReturnDelay + postFireRecovery/exitNormalizedTime) 완료. 경계 지터 완화를 위한 추적 히스테리시스 및 Flame 종료 동기화 반영. `Pattern 4`(AoE) 진행 중. |
@@ -440,7 +442,7 @@ classDiagram
 ### 4.5. Game Logic & Flow
 | Component | Status | Note |
 | --- | --- | --- |
-| **Game Loop** | 🔃 progress | `TitleSceneController`로 아무 키 입력 시작점을 분리했고, `SceneLoader` + `LoadingSceneController` 경유 전투 진입/`GameManager` 결과 처리까지 연결했다. 실플레이 시나리오(동시 사망 포함) 검증은 남아 있다. |
+| **Game Loop** | 🔃 progress | `TitleSceneController`로 아무 키 입력 시작점을 분리했고, `SceneLoader` + `LoadingSceneController` 경유 전투 진입/`GameManager` 결과 처리까지 연결했다. `GamePlayScene_TestResult` + `SimultaneousDeathTest`로 동시 사망 시 `Victory` 출력 검증을 완료했다. 일반 실플레이 회귀 시나리오 검증은 남아 있다. |
 
 ### 4.6. Network Architecture
 | Component | Status | Note |

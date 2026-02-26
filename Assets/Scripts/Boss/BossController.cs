@@ -59,7 +59,6 @@ namespace Core.Boss
         [SerializeField, Tooltip("공격 사거리 경계 지터 완화를 위한 추적 재진입 여유 거리")]
         private float chaseReengageBuffer = 1.0f;
         [SerializeField] private float searchDuration = 5.0f;
-        [SerializeField] private LayerMask obstacleMask;
 
         [Header("공격 설정 (Attack Settings)")]
         [SerializeField] private int attackDamage = 20;
@@ -320,29 +319,6 @@ namespace Core.Boss
 
         #region Public Helper Methods for States
 
-        public bool CheckLineOfSight()
-        {
-            if (playerTransform == null) return false;
-
-            Vector3 origin = transform.position + Vector3.up * 1.5f;
-            Vector3 target = playerTransform.position + Vector3.up * 1.0f;
-            Vector3 direction = (target - origin).normalized;
-
-            if (Physics.Raycast(origin, direction, out RaycastHit hit, detectionRange, ~LayerMask.GetMask("Ignore Raycast")))
-            {
-                if (hit.transform == playerTransform || hit.transform.IsChildOf(playerTransform))
-                {
-                    return true;
-                }
-
-                if (((1 << hit.collider.gameObject.layer) & obstacleMask) != 0)
-                {
-                    return false;
-                }
-            }
-            return false;
-        }
-
         /// <summary>
         /// 보스와 타겟 간 수평(XZ) 거리만 계산한다.
         /// </summary>
@@ -350,6 +326,15 @@ namespace Core.Boss
         {
             if (playerTransform == null) return float.PositiveInfinity;
             return GetPlanarDistance(transform.position, playerTransform.position);
+        }
+
+        /// <summary>
+        /// 타겟이 감지 반경 안에 있는지 수평(XZ) 거리 기준으로 판정한다.
+        /// </summary>
+        public bool IsTargetInDetectionRange()
+        {
+            if (playerTransform == null) return false;
+            return GetPlanarDistanceToTarget() <= detectionRange;
         }
 
         /// <summary>
@@ -476,16 +461,6 @@ namespace Core.Boss
 
             Gizmos.color = Color.yellow;
             Gizmos.DrawWireSphere(transform.position, detectionRange);
-
-            if (playerTransform != null)
-            {
-                Vector3 origin = transform.position + Vector3.up * 1.5f;
-                Vector3 target = playerTransform.position + Vector3.up * 1.0f;
-                bool hasLineOfSight = !Physics.Linecast(origin, target, obstacleMask);
-
-                Gizmos.color = hasLineOfSight ? Color.green : Color.red;
-                Gizmos.DrawLine(origin, target);
-            }
         }
 
         #endregion

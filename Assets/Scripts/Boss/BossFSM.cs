@@ -20,10 +20,8 @@ namespace Core.Boss
         {
             if (Controller.Target == null) return;
 
-            float planarDistance = Controller.GetPlanarDistanceToTarget();
-
-            // 감지 범위 내 & 시야 확보 시 전투 전환
-            if (planarDistance <= Controller.DetectionRange && Controller.CheckLineOfSight())
+            // 스크림(페이즈 인트로)은 시야 조건과 무관하게 감지 반경 진입 시 즉시 발동한다.
+            if (Controller.IsTargetInDetectionRange())
             {
                 Controller.StateMachine.ChangeState(Controller.CombatState);
             }
@@ -272,8 +270,7 @@ namespace Core.Boss
             // 재탐색 성공 시 Combat 복귀
             if (Controller.Target != null)
             {
-                float planarDistance = Controller.GetPlanarDistanceToTarget();
-                if (planarDistance <= Controller.DetectionRange && Controller.CheckLineOfSight())
+                if (Controller.IsTargetInDetectionRange())
                 {
                     Controller.StateMachine.ChangeState(Controller.CombatState);
                     return;
