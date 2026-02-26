@@ -152,6 +152,36 @@
 * 연출 코루틴은 이벤트 발생 시에만 실행되도록 제한해 평시 프레임 루프 부담을 늘리지 않도록 설계.
 * `Health.TakeDamage`에서 0 이하 데미지를 무시하도록 가드해 피격 반응 이벤트 오염(무데미지 히트 반응)을 차단.
 
+### **2026-02-24 (화): GameManager 구현 및 Progress_Log 규칙 정비**
+
+* **오늘 반영한 작업**
+* **GameManager 구현**
+* 시작→전투 전환 경로 구현: `SceneLoader`를 추가해 목적지 씬 예약 후 `LoadingScene` 경유 전환 구조를 구성.
+* 로딩 연출 분리: `LoadingSceneController`에서 비동기 로딩 진행률 UI, 최소 노출 시간, `allowSceneActivation` 타이밍 제어를 구현.
+* 전투 종료 흐름 구현: `GameManager`에서 `Health.OnDeath` 이벤트 기반으로 승리/패배를 판정하고 결과 UI(`Victory` / `Defeated`)를 표시.
+* 재시작 입력 연결: GameOver 상태에서 `Enter`(메인/넘패드) 입력으로 현재 씬 재시작 경로를 구현.
+* 구현 범위 요약: 게임 루프의 시작/종료/재시작 핵심 경로를 코드로 연결.
+* **문서 규칙 정비**
+* 문서 표기 규칙 정비: `AI_Maintenance_Guide` 기준에 맞춰 `Progress_Log`의 버그/폴리싱 체크리스트를 우선순위(`🔴 1순위`, `🟡 2순위`, `🟢 3순위`)와 작업 태그(`(플레이어)`, `(보스)`, `(플레이어, UI)`) 형식으로 통일.
+* 반영 범위 요약: 버그/폴리싱 항목을 우선순위 + 태그 기준으로 정렬해 어떤 파트 작업인지 빠르게 식별 가능하도록 정리.
+
+* **기술적 고려**
+* 게임 루프 컴포넌트를 전환(`SceneLoader`), 로딩 연출(`LoadingSceneController`), 결과 판정(`GameManager`)으로 분리해 변경 영향을 국소화.
+* 게임오버 판정은 사망 이벤트 수집 후 1회 확정 플래그로 처리해 중복 결과 처리/중복 UI 노출을 방지.
+* 문서 측면에서는 우선순위 마커와 작업 태그를 고정 규칙으로 두어 버그/폴리싱 백로그의 정렬 기준을 명시.
+
+### **2026-02-26 (목): TitleScene 진입 경로 연결**
+
+* **오늘 반영한 작업**
+* `TitleScene` 하이어라키를 기준으로 `TitleFlow` 오브젝트를 추가하고 시작 입력 진입 지점을 분리.
+* `TitleSceneController`를 신규 구현해 `Input.anyKeyDown` 입력 시 `SceneLoader.Load(GameSceneId.GamePlay)`를 호출하도록 연결.
+* 오입력 방지를 위해 `inputLockDuration`(기본 0.1초) 가드를 두고, 첫 입력 이후 중복 전환을 차단.
+* Build Settings 씬 순서를 `TitleScene -> LoadingScene -> GamePlayScene`으로 확정.
+
+* **기술적 고려**
+* 타이틀 입력 수집 책임을 `TitleSceneController`로 분리해 `SceneLoader`/`LoadingSceneController`의 기존 책임(전환 관리/비동기 로딩)을 유지.
+* 타이틀 진입 시 `SceneLoader.CancelPendingTransition()`으로 정적 전환 상태를 초기화해 이전 플레이 세션 잔존 상태를 방지.
+
 ## 📈 2월 마일스톤: 싱글플레이 로직 완성 (Capsule vs Cube)
 
 > **목표**: 클라이언트 구축
@@ -211,9 +241,9 @@
 - [x] **HUD 골격 배치**: `CombatHUDController` + 이름 라벨(`Player`, `Dragon`) + 고정형 데미지 텍스트 앵커 구성.
 - [x] **HP 바 자동 갱신 경로**: `Health.OnDamageTaken`/`OnDeath` 기반 UI 갱신 연결.
 - [x] **공격 윈도우 결과 이벤트**: `DamageCaster.OnAttackWindowResolved` 추가 및 `PlayerController` HUD 연결.
-- [ ] **실플레이 검증**: 피격 1회/콤보/사망 직전 케이스에서 중복 이벤트 및 UI 갱신 타이밍 점검.
-- [ ] **게임 매니저(시작 → 전투 페이즈 전환)**: 구현 중 (`SceneLoader` + `LoadingSceneController` 경유 전투 진입 경로 구성), 테스트 미실시.
-- [ ] **게임 매니저(승리/패배)**: 구현 중 (`GameManager` 결과 판정/UI/재시작 입력 처리), 동시 쓰러질 때 테스트 미실시.
+- [x] **실플레이 검증**: 피격 1회/콤보/사망 직전 케이스에서 중복 이벤트 및 UI 갱신 타이밍 점검.
+- [x] **게임 매니저(시작 → 전투 페이즈 전환)**: 구현 완료 (`TitleSceneController` + `SceneLoader` + `LoadingSceneController` 경유 전투 진입 경로 구성), 실플레이 테스트 미실시.
+- [x] **게임 매니저(승리/패배)**: 구현 완료 (`GameManager` 결과 판정/UI/재시작 입력 처리), 동시 쓰러질 때 테스트 미실시.
 ---
 
 #### 🚧 버그 
@@ -240,6 +270,10 @@
 - [ ] 🟢**(플레이어)리팩토링**: DashState Enter(), input데이터 직접참조를 Update(Input) 여기서 받게 수정.
 - [x] 🟢**(게임매니저)리팩토링**: Victory, GameOver TextArea로 만들기
 - [ ] 🟡**(보스) 회전 수정**: 플레이어를 항상 쳐다보는 것이 아닌 공격을 하기 전, 공격을 한 직후는 boss rotation 고정.
+- [x] 🟢**(UI) 움직임 추가**: Press Any Key 깜빡깜빡 효과 추가. fade in & out.
+- [ ] 🟢**지형 애셋 추가**: HQ Apocalyptic Environment 이 애셋을 이용해서 대체
+- [ ] 🟢**글씨 다르게 하기**: 글씨 다르게 하기
+
 
 
 ---

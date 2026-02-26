@@ -34,7 +34,9 @@
 * **HUD 부트스트랩 바인딩**: `PlayerController.InitializeCombatHUD()`에서 HUD 참조/보스 `Health`를 초기 탐색한 뒤 `Initialize`와 이름 라벨 세팅까지 한 번에 수행하는 시작 절차.
 * **HP Fill 정규화 업데이트**: `HealthRatio`를 `Image.fillAmount`로 반영해 체력 UI를 갱신하는 방식. 수치 텍스트 갱신 없이도 이벤트 기반으로 즉시 동기화할 수 있다.
 * **HUD 가시성 토글**: `CombatHUDController.ShowHud(bool)`로 플레이어/보스 체력 UI와 이름 라벨, 데미지 피드백 표시를 일괄 On/Off 하는 제어 패턴.
+* **Title Scene**: 게임 시작 시점 전용 씬. `TitleSceneController`가 아무 키 입력을 감지해 전투 목적지(`GamePlay`)를 `SceneLoader`에 요청한다.
 * **Loading Scene**: 씬 전환 중 비동기 로드를 담당하는 중간 씬. `SceneLoader`가 목적지 씬을 예약하고 `LoadingSceneController`가 진행률 UI와 활성화 타이밍을 제어한다.
+* **Input Lock Duration (입력 잠금 시간)**: 타이틀 진입 직후의 잔존 키 입력으로 즉시 전환되는 문제를 막기 위한 짧은 대기 구간. 현재 `TitleSceneController`의 `_inputLockDuration`으로 제어한다.
 * **Magic String (매직 스트링)**: 코드 내에 직접 하드코딩된 문자열 리터럴. 오타 위험이 크므로 `const` 상수로 관리해야 함.
 * **Coroutine Cleanup**: `StopAllCoroutines()`를 호출하여 진행 중인 비동기 작업(무적 타이머 등)을 강제 중단하는 기법. 상태 전환(사망 등) 시 잔존 코루틴이 예상치 못한 부작용을 일으키는 것을 방지.
 * **Generic State Machine (제네릭 상태 머신)**: `StateMachine<T>` 형태로 구현하여, 플레이어와 보스가 동일한 상태 관리 로직을 공유하면서도 각자의 상태 타입(`PlayerState` vs `BossState`)을 안전하게 사용할 수 있게 하는 기법.

@@ -315,6 +315,54 @@ classDiagram
     BossProjectilePool --> BossProjectile : Reuses
 ```
 
+### 2.4. Game Flow Architecture (Title -> Loading -> GamePlay)
+타이틀 입력, 로딩 연출, 전투 씬 진입을 분리한 게임 루프 시작 구간 구조입니다.
+
+**관련 코드:**
+*   **Flow Entry**: `Assets/Scripts/Common/TitleSceneController.cs`
+*   **Transition Router**: `Assets/Scripts/Common/SceneLoader.cs`
+*   **Loading Orchestrator**: `Assets/Scripts/Common/LoadingSceneController.cs`
+*   **Result & Restart**: `Assets/Scripts/Common/GameManager.cs`
+
+```mermaid
+classDiagram
+    direction TB
+
+    class TitleSceneController {
+        <<MonoBehaviour>>
+        -GameSceneId _nextSceneId
+        -float _inputLockDuration
+        +Update()
+    }
+
+    class SceneLoader {
+        <<Static>>
+        +Load(GameSceneId)
+        +TryConsumeTargetScene(out string) bool
+        +NotifyTransitionCompleted()
+        +CancelPendingTransition()
+    }
+
+    class LoadingSceneController {
+        <<MonoBehaviour>>
+        -GameSceneId _fallbackScene
+        +BeginLoading()
+        +Update()
+    }
+
+    class GameManager {
+        <<MonoBehaviour>>
+        +ResolveGameOver(GameResult)
+        +RestartCurrentScene()
+    }
+
+    %% Relationships
+    TitleSceneController ..> SceneLoader : requests transition
+    SceneLoader --> LoadingSceneController : reserves target
+    LoadingSceneController ..> SceneLoader : consumes target/completes transition
+    GameManager ..> SceneLoader : shares game flow context
+```
+
 ---
 
 ## 3. Data Rules & Coding Standards
@@ -392,7 +440,7 @@ classDiagram
 ### 4.5. Game Logic & Flow
 | Component | Status | Note |
 | --- | --- | --- |
-| **Game Loop** | ⬜ Todo | 게임 매니저, 승리/패배 흐름 제어, 씬 전환. |
+| **Game Loop** | 🔃 progress | `TitleSceneController`로 아무 키 입력 시작점을 분리했고, `SceneLoader` + `LoadingSceneController` 경유 전투 진입/`GameManager` 결과 처리까지 연결했다. 실플레이 시나리오(동시 사망 포함) 검증은 남아 있다. |
 
 ### 4.6. Network Architecture
 | Component | Status | Note |
