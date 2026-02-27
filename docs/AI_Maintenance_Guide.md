@@ -1,4 +1,4 @@
-# 🤖 AI Documentation Maintenance Guide
+﻿# 🤖 AI Documentation Maintenance Guide
 
 이 문서는 프로젝트 `Boss Raid Portfolio`의 AI 보조 개발을 위한 **인덱스(요약 규칙)**입니다.  
 상세 규칙은 `docs/maintenance/` 챕터 문서로 분리해 유지합니다.
@@ -16,7 +16,7 @@
 | API/입력/FSM 관련 작업 | `docs/technical/Input_FSM_Flow.md` | `docs/technical/System_Blueprint.md` | 설계 구조 확인 전 답변/구현 금지 |
 | 성능/물리/풀링 최적화 | `docs/technical/Coding_Standard.md` | `docs/technical/System_Blueprint.md` | Zero-GC/NonAlloc 규칙 충돌 검증 필수 |
 | 애니메이션/비주얼 변경 | `docs/animation/Animator_Setup_Guide.md` | `docs/animation/Animation_Implementation_Log.md` | 기존 리소스 계약(이벤트/파라미터) 점검 후 진행 |
-| 버그 수정/회귀 대응 | `docs/Progress_Log.md`(최신 항목) | 관련 기술 문서 1개 이상 | 원인 가설 + 검증 계획을 먼저 제시 |
+| 버그 수정/회귀 대응 | `docs/Progress_Log/README.md`(최신 일자 파일 확인) | 관련 기술 문서 1개 이상 | 원인 가설 + 검증 계획을 먼저 제시 |
 
 > Hook 판정이 애매하면 기본 세트(`System_Blueprint`, `Input_FSM_Flow`, `Coding_Standard`, `Progress_Log`)를 먼저 읽는다.
 
@@ -37,12 +37,21 @@
 
 ### [Step 4] Self-Review (QA Reviewer 역할)
 구현 직후 `Coding_Standard.md` 준수 여부를 셀프 체크한다.
+코드 신규 작성/수정이 포함된 작업은 최소 1회 컴파일/빌드 기반 코드 검사를 필수로 수행한다.
+검사를 실행하지 못한 경우, 미실행 사유와 대체 검증 내용을 작업 보고에 명시한다.
+코드 검사 결과 확인 전에는 완료 보고 및 체크리스트 완료(`[x]`) 처리를 금지한다.
 
 ### [Step 5] Document Sync (필수)
 코드 변경 후 아래 순서로 동기화한다.
-1. `docs/Progress_Log.md`
+1. `docs/Progress_Log/YYYY-MM-DD.md` (당일 로그 작성) + `docs/Progress_Log/README.md` (인덱스 확인/갱신)
 2. `docs/technical/System_Blueprint.md`
 3. `docs/technical/Technical_Glossary.md`
+
+### [Step 5-1] Progress_Log Tracker Pass (추적 패스)
+다른 문서를 최신화할 때는 `Progress_Log`를 근거 소스로 고정한다.
+1. `docs/Progress_Log/README.md`에서 기준 로그 파일(`docs/Progress_Log/YYYY-MM-DD.md`)을 선택한다.
+2. 기준 로그의 `오늘 반영한 작업`, `체크리스트 업데이트`, `맥락노트`, `기술적 고려`를 근거로 `System_Blueprint`/`Technical_Glossary`를 갱신한다.
+3. 완료 보고에는 `참조 로그: docs/Progress_Log/YYYY-MM-DD.md`를 남긴다.
 
 ## 4. Progress_Log 품질 보고 규칙
 
@@ -54,6 +63,13 @@
 3. **왜 그렇게 판단했는가**
 
 장기 백로그(마일스톤/버그/폴리싱)는 `docs/roadmap/Milestone_Backlog.md`에서 관리한다.
+
+### [동기화 추적 규칙]
+다른 문서를 업데이트하거나 추적할 때, 인덱스 링크만 남기지 말고 기준 일자 로그 파일까지 함께 명시한다.
+
+### [1일 1로그 원칙]
+동일 날짜에는 `Progress_Log` 엔트리를 1개만 유지한다.  
+같은 날 추가 작업은 새 날짜 헤더를 만들지 않고, 기존 날짜 엔트리 내부 소제목/항목으로 병합한다.
 
 ## 5. Agent Roles
 
@@ -75,3 +91,6 @@
 * `docs/` 문서는 UTF-8(UTF-8 with BOM 허용)으로 유지한다.
 * 클래스 다이어그램/시각화 규칙은 Chapter 03을 따른다.
 * 파일 경로 링크는 VS Code 로컬 경로 형식을 사용하고, 웹뷰 URL(`file+.vscode-resource.vscode-cdn.net`)은 사용하지 않는다.
+* 링크 타겟은 Windows 백슬래시 경로(`d:\...`) 대신 슬래시 절대경로(`/d:/...`)를 사용하고, 라인 점프는 `:라인`을 링크 텍스트가 아니라 링크 타겟 내부에 포함한다.
+* 에이전트 응답의 기본 파일 참조 표기는 하이퍼링크 대신 `Assets/...:라인` plain text 형식을 우선 사용한다.
+

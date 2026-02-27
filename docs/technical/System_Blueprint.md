@@ -139,6 +139,7 @@ classDiagram
         <<MonoBehaviour>>
         +MoveSpeed float
         +DetectionRange float
+        +BasicAttackRangeOrigin Transform
         +BasicAttackRange float
         +LungeAttackRange float
         +ProjectileAttackRange float
@@ -156,10 +157,15 @@ classDiagram
         +Transform ProjectileSpawnPoint
         +SetLocomotionVisualSuppressed(bool)
         +GetPlanarDistanceToTarget() float
+        +GetPlanarDistanceFromBasicAttackOriginToTarget() float
         +IsTargetInDetectionRange() bool
         +GetPlanarDistance(Vector3, Vector3) float
         +Update()
         +MoveRaw(Vector3, float)
+        +RotateTowardsImmediate(Vector3)
+        +BeginLungeTravelDirectionLock(Vector3)
+        +EndLungeTravelDirectionLock()
+        +ApplyLungeRootMotion(Vector3)
     }
 
     class BossBaseState {
@@ -175,6 +181,7 @@ classDiagram
         +PlayMove()
         +PlayAttack()
         +PlayLungeAttack()
+        +SetLungeRootMotionEnabled(bool)
         +PlayProjectileAttack()
         +PlayTakeOff()
         +PlayFlyForward()
@@ -265,7 +272,6 @@ classDiagram
 
     class LungeAttackPattern {
         -LungeAttackSettings _settings
-        -bool _rushComplete
         +Enter(BossController)
         +Update(BossController) bool
         +Exit(BossController)
@@ -387,6 +393,10 @@ classDiagram
 * 캐릭터 몸통은 카메라가 바라보는 방향(`cameraRoot.forward`)을 기준으로 이동 벡터를 변환해야 한다.
 * **Boss Planar Distance Rule**: Boss의 감지/추적/공격 사거리 판정은 Y축을 제외한 수평(XZ) 거리 기준으로 계산한다.
 * **Boss Pattern Range Rule**: 보스 공격 사거리는 패턴별 인스펙터 값(`Basic`, `Lunge`, `Projectile`, `AoE`)으로 분리하며, 패턴 선택 시 현재 거리에서 유효한 패턴만 후보로 포함한다.
+* **Boss Basic Range Origin Rule**: Basic 공격 사거리 판정은 `basicAttackRangeOrigin` 기준점에서 타겟까지의 XZ 거리로 계산한다. 기준점이 비어 있으면 Boss Root를 폴백으로 사용한다. 기본 씬 설정은 `HeadDamageCasterPlace`를 사용한다.
+* **Boss Basic Range-Hitbox Sync Rule**: `basicAttackRange`와 `HeadDamageCaster.radius`를 동일 값으로 유지해 사거리 판정과 실제 타격 반경이 어긋나지 않도록 한다.
+* **Boss Phase1 Attack Priority Rule**: Phase1에서 Basic/Lunge 조건이 동시에 만족되면 Basic을 우선 선택한다. Lunge는 Basic 범위를 벗어났고 Lunge 범위는 만족할 때만 선택한다.
+* **Boss Lunge Root Motion Relay Rule**: Lunge 이동은 `rushPhaseRatio/MoveRaw` 수동 전진이 아니라, Animator `OnAnimatorMove`의 델타를 `BossController.ApplyLungeRootMotion`으로 전달해 부모 루트를 이동시킨다. 적용 시 Y축은 제외(XZ만 반영)하고, 활성화 구간은 `SetLungeRootMotionEnabled(true/false)`로 제한한다. 기본 소스는 `animator.deltaPosition`이며 값이 0/미소 프레임일 때는 `Visual`의 실제 월드 이동량을 폴백으로 사용한다. 릴레이는 Lunge 시작 시 `Visual` 로컬 기준 포즈를 캐시하고 `OnAnimatorMove`/종료 시 복원해 부모 루트와 자식 비주얼 좌표가 분리되지 않도록 유지한다. Lunge 시작 시점에는 타겟 방향을 한 번 고정(`BeginLungeTravelDirectionLock`)하고, 루트모션 델타의 크기만 고정 방향에 적용해 플레이어 방향 도약을 안정화한다. Lunge 타이밍은 히트박스 종료(`normalizedTime 0.8`)와 상태 종료(`normalizedTime 1.0`)를 분리해 운영한다.
 * **Boss Detection Trigger Rule**: Idle/Searching에서 Combat 전환(스크림 인트로 진입)은 `IsTargetInDetectionRange()` 기준으로 즉시 수행한다. 현재 보스 감지는 장애물/시야선(LOS) 판정을 사용하지 않는다.
 * **Boss Chase Hysteresis**: 단일 임계값 대신 "현재 페이즈에서 활성화된 패턴 중 최대 사거리"(해제)와 `최대 사거리 + ChaseReengageBuffer`(재진입) 이중 임계값을 사용해 경계 왕복 지터를 완화한다.
 
@@ -401,6 +411,7 @@ classDiagram
 
 * **Role of Controller**: `PlayerController`는 `CharacterController.Move()`와 같은 실제 물리 실행 메서드만 `public`으로 열어두고, '어떻게' 움직일지 결정하는 로직은 `State` 클래스에 위임한다.
 * **State Transition**: 상태 전환은 `StateMachine.ChangeState()`를 통해서만 이루어져야 한다.
+* **Controller Member Layout Rule**: 컨트롤러 클래스는 필드 선언을 먼저 모아 배치하고, `OnValidate`를 포함한 메서드는 필드 선언 이후에 배치해 선언부와 실행부를 분리한다.
 
 ---
 
@@ -436,7 +447,7 @@ classDiagram
 | **Boss Sensors** | ✅ Done | `IsTargetInDetectionRange`(XZ 거리 기반) 단일 규칙으로 Idle/Searching 전투 진입을 처리한다. 장애물 LOS 센서는 제거됨 |
 | **Boss Navigation** | ✅ Done | `MoveTo` (추적 이동) 및 `RotateTowards` (회전) 로직 + AoE 공중 연출 중 Locomotion 시각 잠금 가드 + `ChaseReengageBuffer` 기반 히스테리시스 추적 |
 | **Boss Visuals** | ✅ Done | 구조 분리 및 Dragon Asset(Animator/BlendTree) 통합 완료. `PlayFlyForward` 폴백을 비행 계열로 정리해 Walk 혼입 방지. |
-| **Boss Combat** | 🔃 progress | `Pattern 1`(Basic), `Pattern 2`(Lunge), `Pattern 3`(Projectile: Flame Attack + Homing + Vertical Follow + VFX create/hit + hitReturnDelay + postFireRecovery/exitNormalizedTime) 완료. 패턴별 공격 사거리 분리(`Basic/Lunge/Projectile/AoE`) 및 거리 기반 패턴 후보 필터링, 최대 사거리 기반 추적 히스테리시스 반영. `Pattern 4`(AoE) 진행 중. |
+| **Boss Combat** | 🔃 progress | `Pattern 1`(Basic), `Pattern 2`(Lunge), `Pattern 3`(Projectile: Flame Attack + Homing + Vertical Follow + VFX create/hit + hitReturnDelay + postFireRecovery/exitNormalizedTime) 완료. 패턴별 공격 사거리 분리(`Basic/Lunge/Projectile/AoE`) 및 거리 기반 패턴 후보 필터링, 최대 사거리 기반 추적 히스테리시스 반영. Basic 사거리 기준점은 `basicAttackRangeOrigin`(기본 씬: `HeadDamageCasterPlace`)으로 분리되었고, `basicAttackRange`-`HeadDamageCaster.radius` 동기화로 판정 반경을 일치시켰다. Lunge는 `rushPhaseRatio` 수동 이동을 제거하고 루트모션 브리지(`OnAnimatorMove -> ApplyLungeRootMotion`)로 착지 지점을 부모 루트에 고정한다. 또한 `deltaPosition` 미소 프레임 폴백과 `Visual` 로컬 기준점 복원으로 부모/자식 좌표 불일치를 방지한다. Phase1에서는 Basic/Lunge 동시 충족 시 Basic 우선 규칙을 적용한다. `Pattern 4`(AoE)는 진행 중이다. |
 
 ### 4.4. User Interface (UI)
 | Component | Status | Note |
@@ -446,7 +457,7 @@ classDiagram
 ### 4.5. Game Logic & Flow
 | Component | Status | Note |
 | --- | --- | --- |
-| **Game Loop** | 🔃 progress | `TitleSceneController`로 아무 키 입력 시작점을 분리했고, `SceneLoader` + `LoadingSceneController` 경유 전투 진입/`GameManager` 결과 처리까지 연결했다. `GamePlayScene_TestResult` + `SimultaneousDeathTest`로 동시 사망 시 `Victory` 출력 검증을 완료했다. 일반 실플레이 회귀 시나리오 검증은 남아 있다. |
+| **Game Loop** |  ✅ Done | `TitleSceneController`로 아무 키 입력 시작점을 분리했고, `SceneLoader` + `LoadingSceneController` 경유 전투 진입/`GameManager` 결과 처리까지 연결했다. `GamePlayScene_TestResult` + `SimultaneousDeathTest`로 동시 사망 시 `Victory` 출력 검증을 완료했다. 일반 실플레이 회귀 시나리오 검증은 남아 있다. |
 
 ### 4.6. Network Architecture
 | Component | Status | Note |
@@ -474,7 +485,12 @@ classDiagram
 | 설계 근거 | `System_Blueprint`의 어떤 원칙/구조를 따르는지 |
 | 리스크 | 회귀 가능성, 충돌 가능성, 범위 외 영향 |
 | 검증 포인트 | 테스트/수동 검증 시나리오와 성공 기준 |
-| 문서 동기화 계획 | `Progress_Log`, `System_Blueprint`, `Technical_Glossary` 반영 계획 |
+| 문서 동기화 계획 | `docs/Progress_Log/YYYY-MM-DD.md` 기준 로그 지정 + `System_Blueprint`, `Technical_Glossary` 반영 계획 |
+
+#### Progress_Log 추적 메모 규칙
+
+1. 구현 현황/규칙 문구를 수정할 때는 근거 로그 파일을 1개 이상 지정한다.
+2. 완료 보고에 `참조 로그: docs/Progress_Log/YYYY-MM-DD.md`를 남겨 변경 근거를 추적 가능하게 유지한다.
 
 #### 프롬프트 예시
 

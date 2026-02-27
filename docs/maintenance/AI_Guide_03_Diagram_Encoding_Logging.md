@@ -1,4 +1,4 @@
-# 📐 AI Guide Chapter 03: Diagram, Encoding, Logging
+﻿# 📐 AI Guide Chapter 03: Diagram, Encoding, Logging
 
 이 문서는 시각화 규칙, 문서 인코딩 가드레일, 로그 표기 규칙의 상세 기준을 정의합니다.
 
@@ -75,7 +75,7 @@ classDiagram
 * 터미널 출력이 깨져 보여도 즉시 재저장하지 않는다. 먼저 파일 바이트/인코딩을 확인한다.
 * `git diff`에서 `�`, `??`, `ì`, `ì´` 같은 깨짐 패턴이 보이면 수정 작업을 중단하고 원인을 분리 진단한다.
 * 깨진 텍스트는 인코딩 변환만으로 복원하지 않고, 정상본(이전 커밋/백업) 기준으로 수동 복구한다.
-* `Input_FSM_Flow.md`, `System_Blueprint.md`, `Progress_Log.md`는 우선 보호 문서로 취급한다.
+* `Input_FSM_Flow.md`, `System_Blueprint.md`, `Progress_Log/README.md`는 우선 보호 문서로 취급한다.
 
 ## 3. Progress_Log 작업 항목 표기 규칙
 
@@ -87,7 +87,15 @@ classDiagram
 
 * 파일 링크는 VS Code에서 바로 열리는 로컬 경로 형식을 사용한다.
 * `file+.vscode-resource.vscode-cdn.net` 형태의 웹뷰 URL은 사용하지 않는다.
+* 링크 실패 재발 방지를 위해 아래 두 규칙을 고정 적용한다.
+  * Windows 백슬래시 경로(`d:\...`)를 링크 타겟으로 쓰지 않는다. 반드시 슬래시 절대경로(`/d:/...`)를 사용한다.
+  * 라인 번호는 링크 텍스트 바깥에 붙이지 않는다. 반드시 링크 타겟 내부에 `:라인`으로 포함한다.
+* 문서 최신화/추적 보고에서는 인덱스 링크(`docs/Progress_Log/README.md`)만 남기지 않고, 기준 로그(`docs/Progress_Log/YYYY-MM-DD.md`)를 함께 표기한다.
 * 권장 형식:
   * 절대 경로: `[파일명](/d:/Unity-projects/BossRaidPortfolio/경로/파일:라인)`
   * 상대 경로: `Assets/...:라인`
+* 금지 예시:
+  * `[BossController.cs](d:\Unity-projects\BossRaidPortfolio\Assets\Scripts\Boss\BossController.cs) :118`
+  * `[BossController.cs](/d:/Unity-projects/BossRaidPortfolio/Assets/Scripts/Boss/BossController.cs) :118`
 * 문서 본문에서는 URL 전체를 붙여 넣기보다 위 형식의 경로 링크를 우선 사용한다.
+
