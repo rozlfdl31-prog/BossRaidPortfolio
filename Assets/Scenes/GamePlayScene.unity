@@ -177,12 +177,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   playerTransform: {fileID: 1585844235}
   animator: {fileID: 1487502255}
+  basicAttackRangeOrigin: {fileID: 1470039690}
   moveSpeed: 3.5
   searchingMoveSpeed: 2
   rotationSpeed: 5
   phaseTwoHealthThreshold: 0.5
-  detectionRange: 37.8
-  attackRange: 28.1
+  detectionRange: 53.6
+  basicAttackRange: 6.49
+  lungeAttackRange: 33.9
+  projectileAttackRange: 41.5
+  aoeAttackRange: 49
   chaseReengageBuffer: 1
   searchDuration: 5
   attackDamage: 2
@@ -192,9 +196,6 @@ MonoBehaviour:
   _lungeDamageCaster: {fileID: 1189825118}
   lungeAttackSettings:
     damageMultiplier: 1.5
-    rushSpeed: 5
-    rushPhaseRatio: 0.5
-    exitPhaseRatio: 0.5
   projectileAttackSettings:
     telegraphDuration: 0.3
     damage: 12
@@ -249,6 +250,8 @@ MonoBehaviour:
   enableLungeAttack: 1
   enableProjectileAttack: 1
   enableAoEAttack: 1
+  enableLungeRootMotionDebugLog: 1
+  lungeRootMotionDebugLogInterval: 0.05
   showPhaseDebugLabel: 1
 --- !u!143 &242866945
 CharacterController:
@@ -479,7 +482,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e63d09e61f26b4b4db8c3a27731f4051, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _radius: 1.96
+  _radius: 6.49
   _targetLayer:
     serializedVersion: 2
     m_Bits: 128
@@ -2095,7 +2098,7 @@ Transform:
   m_GameObject: {fileID: 1585844231}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.71, y: 1, z: -35.18}
+  m_LocalPosition: {x: -3.71, y: 1, z: -43.7}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:

@@ -47,11 +47,24 @@ namespace Core.Boss
         private const float DefaultScreamDuration = 1.2f;
 
         private int _currentAnimState;
+        private BossRootMotionRelay _rootMotionRelay;
+
+        private void Awake()
+        {
+            ResolveRootMotionRelay();
+        }
 
         public void SetSpeed(float speed)
         {
             // Blend Tree Parameter (Inherited AnimSpeed)
             if (_animator) _animator.SetFloat(AnimSpeed, speed);
+        }
+
+        public void SetLungeRootMotionEnabled(bool enabled)
+        {
+            if (_animator == null) return;
+            if (_rootMotionRelay == null) ResolveRootMotionRelay();
+            _rootMotionRelay?.SetLungeRootMotionEnabled(enabled);
         }
 
         public void PlayIdle()
@@ -185,9 +198,159 @@ namespace Core.Boss
             return fallback;
         }
 
+        private void ResolveRootMotionRelay()
+        {
+            if (_animator == null) return;
+
+            GameObject animatorObject = _animator.gameObject;
+            _rootMotionRelay = animatorObject.GetComponent<BossRootMotionRelay>();
+            if (_rootMotionRelay == null)
+            {
+                _rootMotionRelay = animatorObject.AddComponent<BossRootMotionRelay>();
+            }
+
+            _rootMotionRelay.Configure(GetComponentInParent<BossController>());
+            _rootMotionRelay.SetLungeRootMotionEnabled(false);
+        }
+
         public void SetSearchingUI(bool active)
         {
             if (_questionMarkUI) _questionMarkUI.SetActive(active);
+        }
+    }
+
+    [DisallowMultipleComponent]
+    internal sealed class BossRootMotionRelay : MonoBehaviour
+    {
+        private Animator _animator;
+        private BossController _owner;
+        private bool _lungeRootMotionEnabled;
+        private Vector3 _cachedLocalPosition;
+        private Quaternion _cachedLocalRotation;
+        private bool _hasCachedLocalPose;
+        private Vector3 _previousVisualWorldPosition;
+        private const float RootMotionDeltaEpsilon = 0.0001f;
+
+        private void Awake()
+        {
+            _animator = GetComponent<Animator>();
+            if (_owner == null)
+            {
+                _owner = GetComponentInParent<BossController>();
+            }
+
+            _previousVisualWorldPosition = transform.position;
+        }
+
+        public void Configure(BossController owner)
+        {
+            _owner = owner;
+        }
+
+        public void SetLungeRootMotionEnabled(bool enabled)
+        {
+            if (_lungeRootMotionEnabled == enabled)
+            {
+                if (_animator != null)
+                {
+                    _animator.applyRootMotion = enabled;
+                }
+                return;
+            }
+
+            _lungeRootMotionEnabled = enabled;
+
+            if (enabled)
+            {
+                CacheVisualLocalPose();
+            }
+            else
+            {
+                RestoreVisualLocalPose();
+            }
+
+            _previousVisualWorldPosition = transform.position;
+
+            if (_animator != null)
+            {
+                _animator.applyRootMotion = enabled;
+            }
+        }
+
+        private void OnAnimatorMove()
+        {
+            if (!_lungeRootMotionEnabled) return;
+            if (_animator == null || _owner == null) return;
+
+            Vector3 animatorDeltaPosition = _animator.deltaPosition;
+            Vector3 appliedDeltaPosition = ResolveAppliedDeltaPosition(animatorDeltaPosition, out bool usedVisualFallback);
+            _owner.ApplyLungeRootMotion(appliedDeltaPosition);
+
+            // 자식 Visual의 로컬 기준점을 유지해 부모/자식 좌표 불일치를 방지한다.
+            RestoreVisualLocalPose();
+            _previousVisualWorldPosition = transform.position;
+
+            if (!_owner.ShouldEmitLungeRootMotionDebugLog()) return;
+
+            AnimatorStateInfo stateInfo = _animator.GetCurrentAnimatorStateInfo(0);
+            bool isLungeState = stateInfo.IsName("Lunge Attack");
+            bool isClawState = stateInfo.IsName("Claw Attack");
+            Vector3 bossPos = _owner.transform.position;
+            float animatorDeltaXZMag = new Vector2(animatorDeltaPosition.x, animatorDeltaPosition.z).magnitude;
+            float appliedDeltaXZMag = new Vector2(appliedDeltaPosition.x, appliedDeltaPosition.z).magnitude;
+            Vector3 localOffset = transform.localPosition - _cachedLocalPosition;
+
+            Debug.Log(
+                $"[LungeDebug][RootMotion] " +
+                $"applyRootMotion={_animator.applyRootMotion} " +
+                $"state(Lunge={isLungeState},Claw={isClawState}) " +
+                $"nTime={stateInfo.normalizedTime:F3} " +
+                $"animDelta=({animatorDeltaPosition.x:F3},{animatorDeltaPosition.y:F3},{animatorDeltaPosition.z:F3}) " +
+                $"appliedDelta=({appliedDeltaPosition.x:F3},{appliedDeltaPosition.y:F3},{appliedDeltaPosition.z:F3}) " +
+                $"fallback={usedVisualFallback} " +
+                $"animDeltaXZMag={animatorDeltaXZMag:F3} " +
+                $"appliedDeltaXZMag={appliedDeltaXZMag:F3} " +
+                $"visualLocalOffset=({localOffset.x:F3},{localOffset.y:F3},{localOffset.z:F3}) " +
+                $"bossPos=({bossPos.x:F3},{bossPos.y:F3},{bossPos.z:F3})");
+        }
+
+        private Vector3 ResolveAppliedDeltaPosition(Vector3 animatorDeltaPosition, out bool usedVisualFallback)
+        {
+            usedVisualFallback = false;
+
+            Vector3 animatorDeltaXZ = animatorDeltaPosition;
+            animatorDeltaXZ.y = 0f;
+
+            float epsilonSqr = RootMotionDeltaEpsilon * RootMotionDeltaEpsilon;
+            if (animatorDeltaXZ.sqrMagnitude > epsilonSqr)
+            {
+                return animatorDeltaXZ;
+            }
+
+            Vector3 visualDelta = transform.position - _previousVisualWorldPosition;
+            visualDelta.y = 0f;
+            if (visualDelta.sqrMagnitude <= epsilonSqr)
+            {
+                return Vector3.zero;
+            }
+
+            usedVisualFallback = true;
+            return visualDelta;
+        }
+
+        private void CacheVisualLocalPose()
+        {
+            _cachedLocalPosition = transform.localPosition;
+            _cachedLocalRotation = transform.localRotation;
+            _hasCachedLocalPose = true;
+        }
+
+        private void RestoreVisualLocalPose()
+        {
+            if (!_hasCachedLocalPose) return;
+
+            transform.localPosition = _cachedLocalPosition;
+            transform.localRotation = _cachedLocalRotation;
         }
     }
 }
