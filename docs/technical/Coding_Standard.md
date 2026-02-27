@@ -1,4 +1,4 @@
-# 📜 Coding Standard: Boss Raid Portfolio
+﻿# 📜 Coding Standard: Boss Raid Portfolio
 
 이 문서는 프로젝트의 성능 최적화(Zero-GC), 유지보수성, 네트워크 확장성을 위한 코드 작성 규칙을 정의합니다.
 
@@ -70,4 +70,5 @@
 * **No Legacy Save Rule**: `cp949`, `euc-kr`, `ansi` 등 레거시 인코딩으로 재저장하지 않는다.
 * **Mojibake Diff Rule**: 커밋 전 `git diff`에서 `�`, `??`, `ì`, `ì´` 등 깨짐 패턴을 발견하면 커밋을 중단하고 원인을 분리 진단한다.
 * **Recovery Rule**: 이미 깨진 문자열은 인코딩 변환만으로 복원하지 않는다. 정상본(이전 커밋/백업) 기준으로 수동 복구한다.
-* **Critical Docs Rule**: `Input_FSM_Flow.md`, `System_Blueprint.md`, `Progress_Log.md`는 편집 전 우선 점검 문서로 취급한다.
+* **Critical Docs Rule**: `Input_FSM_Flow.md`, `System_Blueprint.md`, `Progress_Log/README.md`는 편집 전 우선 점검 문서로 취급한다.
+
