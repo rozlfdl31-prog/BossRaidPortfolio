@@ -10,9 +10,11 @@ namespace Core.Boss.Attacks
     public class LungeAttackPattern : IBossAttackPattern
     {
         private readonly BossController.LungeAttackSettings _settings;
-
-        /// <summary>도약 구간이 완료되었는지 추적하는 플래그</summary>
-        private bool _rushComplete;
+        private const float FixedHitboxOffPhaseRatio = 0.8f;
+        private const float FixedExitPhaseRatio = 1.0f;
+        private Vector3 _lungeStartPosition;
+        private bool _hitboxDisabled;
+        private bool _lungeStateObserved;
 
         public LungeAttackPattern(BossController.LungeAttackSettings settings)
         {
@@ -21,17 +23,34 @@ namespace Core.Boss.Attacks
 
         public void Enter(BossController controller)
         {
-            _rushComplete = false;
             controller.StopMoving();
+            controller.ResetLungeRootMotionDebugLogWindow();
+            _lungeStartPosition = controller.transform.position;
+            _hitboxDisabled = false;
+            _lungeStateObserved = false;
 
             // 타겟 방향으로 즉시 회전
             if (controller.Target != null)
             {
-                controller.RotateTowards(controller.Target.position);
+                controller.RotateTowardsImmediate(controller.Target.position);
+                controller.BeginLungeTravelDirectionLock(controller.Target.position);
             }
+            else
+            {
+                controller.BeginLungeTravelDirectionLock(controller.transform.position + controller.transform.forward);
+            }
+
+            // 도약 애니메이션의 루트 모션을 보스 루트 이동으로 전달
+            controller.Visual?.SetLungeRootMotionEnabled(true);
 
             // Lunge Attack 애니메이션 재생
             controller.Visual?.PlayLungeAttack();
+
+            if (controller.EnableLungeRootMotionDebugLog)
+            {
+                Vector3 pos = controller.transform.position;
+                Debug.Log($"[LungeDebug][Enter] pos=({pos.x:F3},{pos.y:F3},{pos.z:F3})");
+            }
 
             // DamageCaster 활성화 (기본 공격력 × damageMultiplier)
             int damage = (int)(controller.AttackDamage * _settings.damageMultiplier);
@@ -40,9 +59,9 @@ namespace Core.Boss.Attacks
 
         /// <summary>
         /// 매 프레임 호출. normalizedTime으로 애니메이션 진행률을 추적하여
-        /// 도약 구간과 종료 시점을 판단합니다.
+        /// 종료 시점을 판단합니다.
         /// </summary>
-        /// <returns>true: 공격 종료 → CombatState로 복귀</returns>
+        /// <returns>true: 공격 종료 -> CombatState로 복귀</returns>
         public bool Update(BossController controller)
         {
             // Visual 또는 Animator가 없으면 즉시 종료 (안전 장치)
@@ -56,32 +75,43 @@ namespace Core.Boss.Attacks
             bool isLungeState = stateInfo.IsName("Lunge Attack") || stateInfo.IsName("Claw Attack");
             if (!isLungeState)
             {
-                return false;
+                // 이미 도약 상태를 거쳤고 판정 종료가 끝났다면,
+                // 애니메이터가 다음 상태로 넘어간 프레임에서도 안전하게 공격을 종료한다.
+                return _lungeStateObserved && _hitboxDisabled;
+            }
+
+            _lungeStateObserved = true;
+            float progress = stateInfo.normalizedTime;
+
+            // 판정 종료 시점(0.8)과 상태 종료 시점(클립 끝)을 분리한다.
+            if (!_hitboxDisabled && progress >= FixedHitboxOffPhaseRatio)
+            {
+                controller.LungeDamageCaster?.DisableHitbox();
+                _hitboxDisabled = true;
             }
 
             // normalizedTime: 0.0(시작) ~ 1.0(끝). 루프 클립은 1.0 초과 가능.
-            float progress = stateInfo.normalizedTime;
-
-            // [도약 구간] 애니메이션 초반(0 ~ rushPhaseRatio) 동안 전방 돌진
-            if (!_rushComplete && progress < _settings.rushPhaseRatio)
-            {
-                controller.MoveRaw(controller.transform.forward, _settings.rushSpeed);
-            }
-            else if (!_rushComplete)
-            {
-                // 도약 구간 종료 (MoveRaw를 더 이상 호출하지 않으므로 자연히 정지)
-                _rushComplete = true;
-            }
-
-            // 애니메이션 종료 판정 (exitPhaseRatio 시점에서 종료)
-            return progress >= _settings.exitPhaseRatio;
+            // 애니메이션 종료 판정은 클립 끝(1.0) 기준으로 수행한다.
+            return progress >= FixedExitPhaseRatio;
         }
 
         public void Exit(BossController controller)
         {
             // 판정 종료 및 이동 정지 (사망 등 강제 전환 시에도 안전하게 정리)
+            controller.EndLungeTravelDirectionLock();
+            controller.Visual?.SetLungeRootMotionEnabled(false);
             controller.LungeDamageCaster?.DisableHitbox();
+            _hitboxDisabled = true;
             controller.StopMoving();
+
+            if (controller.EnableLungeRootMotionDebugLog)
+            {
+                Vector3 endPos = controller.transform.position;
+                Vector3 delta = endPos - _lungeStartPosition;
+                Debug.Log(
+                    $"[LungeDebug][Exit] pos=({endPos.x:F3},{endPos.y:F3},{endPos.z:F3}) " +
+                    $"deltaXZ=({delta.x:F3},{delta.z:F3})");
+            }
         }
     }
 }
