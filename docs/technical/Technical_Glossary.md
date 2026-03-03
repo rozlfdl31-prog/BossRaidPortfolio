@@ -63,10 +63,10 @@
 * **Basic Range Origin (기본 공격 사거리 기준점)**: Basic 패턴 거리 판정의 시작점 Transform. `basicAttackRangeOrigin`으로 주입하며, 미할당 시 Boss Root를 사용한다. 현재 기본 씬에서는 `HeadDamageCasterPlace`를 기준점으로 사용한다.
 * **Basic Range-Hitbox Sync (기본 사거리-히트박스 반경 동기화)**: `basicAttackRange`를 `HeadDamageCaster.radius`와 동일 값으로 유지해 공격 가능 거리 판단과 실제 타격 판정 반경이 일치하도록 보장하는 규칙.
 * **Phase1 Attack Priority (페이즈1 공격 우선순위)**: Phase1에서 Basic/Lunge 사거리 조건이 동시에 성립하면 Basic을 우선 선택하는 규칙. Lunge는 Basic 범위를 벗어난 경우에만 선택한다.
-* **Lunge Root Motion Relay (도약 루트모션 릴레이)**: Lunge 애니메이션의 루트모션 델타를 Animator `OnAnimatorMove`에서 수신해 `BossController.ApplyLungeRootMotion`으로 전달하는 방식. 기본 이동량은 `animator.deltaPosition`을 사용하며, 도약 이동을 부모 루트 좌표계에 반영한다.
-* **Lunge Root Motion Fallback (도약 루트모션 폴백)**: `animator.deltaPosition`이 0 또는 미소값으로 들어오는 프레임에서 자식 `Visual`의 실제 월드 이동량을 대체 소스로 사용하는 보정 규칙. 루트모션 데이터 품질 편차가 있어도 부모 루트 이동 누락을 줄이기 위해 사용한다.
+* **Lunge Root Motion Relay (도약 루트모션 릴레이)**: Lunge 애니메이션의 루트모션 델타를 Animator `OnAnimatorMove`에서 수신해 `BossController.ApplyLungeRootMotion`으로 전달하는 방식. 현재는 Animator `deltaPosition` 단일 소스로 부모 루트 이동을 추종한다.
+* **Lunge Root Motion Fallback (도약 루트모션 폴백)**: (레거시) 과거에는 `animator.deltaPosition` 미소 프레임에서 Visual 월드 이동량 폴백을 사용했으나, 현재 구현에서는 제거되었다.
 * **Visual Local Pose Restore (비주얼 로컬 기준점 복원)**: Lunge 시작 시점의 자식 `Visual` 로컬 위치/회전을 캐시한 뒤, 루트모션 적용 프레임과 종료 시점에 기준 포즈로 복원해 부모 루트와 자식 비주얼 좌표 불일치 누적을 차단하는 방식.
-* **Lunge Travel Direction Lock (도약 이동 방향 고정)**: Lunge 시작 시점의 타겟 방향을 1회 잠금한 뒤, 루트모션 델타의 크기만 잠금 방향에 적용하는 규칙. 애니메이션 거리감은 유지하면서 도약 방향을 플레이어 쪽으로 안정화할 때 사용한다.
+* **Lunge Travel Direction Lock (도약 이동 방향 고정)**: (레거시) 과거에는 Lunge 시작 시 타겟 방향을 잠금해 루트모션 거리를 재투영했으나, 현재 구현에서는 제거되어 Animator 델타를 그대로 추종한다.
 * **Range-Only Detection Trigger (거리 단일 감지 트리거)**: Idle/Searching에서 Combat(스크림 인트로) 진입을 감지 반경(`IsTargetInDetectionRange`)만으로 판정하는 규칙. 장애물/시야선(LOS) 여부와 무관하게 거리 조건만 충족하면 전투 전환이 발생한다.
 * **Chase Hysteresis (추적 히스테리시스)**: 단일 공격 사거리 임계값 대신 현재 페이즈에서 활성화된 패턴의 `최대 사거리`(해제)와 `최대 사거리 + ChaseReengageBuffer`(재진입) 이중 임계값을 두어 Walk/Idle 경계 지터를 완화하는 기법.
 * **Asset+Meta Pair Rule (에셋-메타 쌍 규칙)**: Unity 에셋은 파일만 커밋하면 참조가 보장되지 않는다. 참조 안정성을 위해 원본 에셋과 해당 `.meta`를 반드시 쌍으로 버전관리하는 규칙.
@@ -104,6 +104,28 @@
 * **Bone-Synced Hitbox (본 동기화 피격 판정)**: `DamageCaster._castCenter`를 스켈레톤의 Bone 자식 Transform으로 설정하여, 애니메이션에 따라 히트박스 위치가 자동으로 동기화되는 기법. 코드 수정 없이 물리 판정과 애니메이션을 연동할 수 있음.
 * **Partial Animation (부분 애니메이션)**: 애니메이션 클립 전체를 재생하지 않고, 특정 구간(예: 도약 부분)만 재생한 후 강제로 종료(`exitPhaseRatio`)하여 동작의 템포를 조절하는 기법. 복귀 모션 등을 생략하여 타격감을 높일 때 사용됨.
 * **Lunge Hitbox/Exit Split Timing (도약 판정/상태 종료 분리 타이밍)**: Lunge 패턴에서 `rushPhaseRatio` 전진 구간 분기를 제거하고, 히트박스 종료 시점(`normalizedTime 0.8`)과 상태 종료 시점(`normalizedTime 1.0`)을 분리해 운영하는 방식. 이동은 루트모션 릴레이가 담당한다.
+* **Windup (준비 구간)**: Attack2 시작 직후의 사전 동작 구간. 본 구간에서는 보스가 도약을 시작하기 전 지면 정렬과 충돌 안정화가 우선된다.
+* **PreLaunch (도약 직전 구간)**: 실제 이륙(Launch) 직전의 마지막 준비 구간. `Windup`과 함께 ground lock 적용 대상이며, 플레이어 머리 타기 회귀를 막기 위해 `stepOffset 0`을 유지한다.
+* **Launch Marker (도약 시작 마커)**: Attack2에서 ground lock을 해제하고 루트모션 Y를 허용하는 전환 기준 이벤트(애니메이션 마커). 월드 Y 변화량 대신 상태 전환의 기준점으로 사용한다.
+* **Attack2 Marker Fallback (Attack2 마커 폴백)**: 애니메이션 이벤트(`PreLaunchStart/Launch/Land`)가 누락되거나 타이밍이 밀릴 때 `normalizedTime` 임계값으로 동일한 구간 전이를 보장하는 보조 규칙.
+* **Attack2 Marker Queue (Attack2 마커 큐)**: Attack2 애니메이션 마커를 단일 슬롯이 아닌 큐로 누적해 프레임 드랍/동시 이벤트 상황에서 마커가 덮어써져 유실되는 문제를 방지하는 처리.
+* **AnimEventSynth (합성 마커 이벤트)**: AnimEvent가 누락된 Attack2에서 `BossRootMotionRelay`가 정규화 시간 임계값을 기준으로 `PreLaunchStart/Launch/Land` 마커를 직접 큐잉하는 보조 경로.
+* **MarkerPathWarn (마커 경로 경고 로그)**: 기대된 Attack2 애니메이션 마커가 수신되지 않아 폴백 경로(`normalizedTime`)로 전이됐음을 강제 로그로 기록하는 추적 태그.
+* **Ground Lock (지면 잠금)**: `Windup/PreLaunch` 동안 Ground 레이어 Raycast로 목표 Y를 계산해 보스 바닥 높이를 강제 유지하는 보정 기법. 루트모션은 XZ만 반영하고 Y는 고정한다.
+* **Attack2 Launch Guard (Attack2 Launch 상한 가드)**: `launchNormalizedTime`/`landSnapNormalizedTime`을 종료 시점 이전 상한(`0.98`)으로 강제해 Launch 영구 미진입 설정을 예방하는 규칙.
+* **Animator Delta Follow (애니메이터 델타 추종)**: Attack2 이동에서 `CharacterController`가 자체 이동 벡터를 계산하지 않고 Animator `deltaPosition`을 그대로 `Move`에 반영해 애니메이션 루트 이동을 직접 추종하는 방식.
+* **StepOffset Zeroing (스텝 오프셋 제로잉)**: Attack2 준비 구간에서 `CharacterController.stepOffset`을 `0`으로 내려 자동 계단 오르기를 차단하는 처리. 플레이어 머리/어깨를 계단처럼 인식해 올라타는 문제를 예방한다.
+* **Attack2 Repro Harness (Attack2 재현 하네스)**: `GamePlayScene_TestResult`에서 플레이어를 보스 전방 재현 위치로 자동 고정해, 수동 위치 조정 없이 Attack2 위로 올라감 회귀를 반복 재현하는 테스트용 보조 컴포넌트.
+* **Attack2 Landing Debug Log (Attack2 착지 분석 로그)**: 착지 순간의 턱 걸림/지연을 진단하기 위해 `[Attack2Landing]` 프리픽스로 출력하는 추적 로그 체계. RootMotion 델타, Gravity 이동량, GroundSnap 결과, `CollisionFlags(Sides/Above/Below)`, 애니메이션 마커 소비 시점을 함께 기록한다.
+* **RootMotionRelayProbe (루트모션 릴레이 프로브)**: `BossRootMotionRelay.OnAnimatorMove` 단계에서 `normalizedTime`, `animator.deltaPosition`, `applyRootMotion` 상태를 강제 출력해 루트모션 입력 경로 유효성을 검증하는 로그 태그.
+* **Attack2 SpatialProbe (Attack2 공간 좌표 프로브)**: `[Attack2Landing][SpatialProbe]` 로그로 `player`, `boss`, `visual`, `red(Boss/Visual/Red)` 월드 좌표와 상대 벡터(`player-boss`, `player-red`, `boss-red`, `visualInBoss`, `redInBoss`) 및 `redPath`를 함께 출력해 좌표계 이탈 원인을 추적하는 규칙.
+* **GroundSnap Failure Reason (GroundSnap 실패 사유 코드)**: `GroundSnapMiss`/`GroundSnapSkipMaxDistance` 로그에 `InvalidSetup`, `MaskEmpty`, `NoHit`, `AllFiltered` 같은 원인 코드를 명시해 착지 보정 실패의 원인을 즉시 판별하는 규칙.
+* **Attack2 Core Timing Trio (Attack2 핵심 타이밍 3종)**: `preLaunchStartNormalizedTime`, `launchNormalizedTime`, `landSnapNormalizedTime`의 묶음. Windup/PreLaunch/Airborne/LandSnap 구간 경계를 정의하는 1차 튜닝 축이다.
+* **Attack2 Inspector Timeline (Attack2 인스펙터 타임라인)**: `BossControllerEditor`에서 핵심 타이밍 3종과 Guard(`0.98`)를 막대 그래프로 표시하는 시각화. 수치 변경이 어느 구간 길이를 바꾸는지 즉시 확인하기 위한 편의 계층이다.
+* **Attack2 Gizmo Feature Toggle Set (Attack2 기즈모 기능 토글 세트)**: `showAttackRangesGizmo`, `showDetectionRangeGizmo`, `showAttack2GroundProbeGizmo`, `showAttack2SnapWindowGizmo`, `showAttack2SpatialLineGizmo`의 묶음. 필요한 진단 기즈모만 선택 출력해 디버깅 노이즈를 줄이는 규칙이다.
+* **Ground Probe Gizmo (지면 프로브 기즈모)**: Attack2의 `groundRayStartHeight`, `groundRayDistance`, `groundMask` 기준으로 실제 Ray 시작점/길이/히트 지점을 Scene 뷰에 표시하는 시각 진단 도구.
+* **Snap Window Gizmo (스냅 윈도우 기즈모)**: `groundSnapMaxDistance`와 `groundSnapEpsilon`을 시각화해 현재 Boss Y 대비 허용 보정 범위와 목표 스냅 Y가 창 안에 있는지 표시하는 디버그 기즈모.
+* **Recovery Baseline Rollback (회복 기준선 회귀)**: 다층 튜닝(파라미터/디버그/시각화) 이후에도 핵심 증상이 남을 때, 최근 실험을 덧붙이지 않고 마지막 안정 커밋의 이동 경로로 먼저 되돌리는 복구 전략.
 
 ## 6. Animation System
 
