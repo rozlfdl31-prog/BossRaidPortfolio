@@ -63,10 +63,13 @@
 * **Basic Range Origin (기본 공격 사거리 기준점)**: Basic 패턴 거리 판정의 시작점 Transform. `basicAttackRangeOrigin`으로 주입하며, 미할당 시 Boss Root를 사용한다. 현재 기본 씬에서는 `HeadDamageCasterPlace`를 기준점으로 사용한다.
 * **Basic Range-Hitbox Sync (기본 사거리-히트박스 반경 동기화)**: `basicAttackRange`를 `HeadDamageCaster.radius`와 동일 값으로 유지해 공격 가능 거리 판단과 실제 타격 판정 반경이 일치하도록 보장하는 규칙.
 * **Phase1 Attack Priority (페이즈1 공격 우선순위)**: Phase1에서 Basic/Lunge 사거리 조건이 동시에 성립하면 Basic을 우선 선택하는 규칙. Lunge는 Basic 범위를 벗어난 경우에만 선택한다.
-* **Lunge Root Motion Relay (도약 루트모션 릴레이)**: Lunge 애니메이션의 루트모션 델타를 Animator `OnAnimatorMove`에서 수신해 `BossController.ApplyLungeRootMotion`으로 전달하는 방식. 현재는 Animator `deltaPosition` 단일 소스로 부모 루트 이동을 추종한다.
-* **Lunge Root Motion Fallback (도약 루트모션 폴백)**: (레거시) 과거에는 `animator.deltaPosition` 미소 프레임에서 Visual 월드 이동량 폴백을 사용했으나, 현재 구현에서는 제거되었다.
+* **Lunge Root Motion Relay (도약 루트모션 릴레이)**: Lunge 애니메이션의 루트모션 델타를 Animator `OnAnimatorMove`에서 수신해 `BossController.ApplyLungeRootMotion(deltaPosition, normalizedTime)`으로 전달하는 방식. 기본 경로는 Animator XZ 델타 기반이며, 캐릭터 루트 이동은 `CharacterController.Move`로 적용된다.
+* **Lunge Root Motion Fallback (도약 루트모션 폴백)**: `animator.deltaPosition` XZ 델타가 임계값 이하일 때 `Visual` 월드 이동량 델타를 대체 입력으로 사용하는 보조 경로.
 * **Visual Local Pose Restore (비주얼 로컬 기준점 복원)**: Lunge 시작 시점의 자식 `Visual` 로컬 위치/회전을 캐시한 뒤, 루트모션 적용 프레임과 종료 시점에 기준 포즈로 복원해 부모 루트와 자식 비주얼 좌표 불일치 누적을 차단하는 방식.
-* **Lunge Travel Direction Lock (도약 이동 방향 고정)**: (레거시) 과거에는 Lunge 시작 시 타겟 방향을 잠금해 루트모션 거리를 재투영했으나, 현재 구현에서는 제거되어 Animator 델타를 그대로 추종한다.
+* **Lunge Travel Direction Lock (도약 이동 방향 고정)**: Lunge 시작 시 타겟 방향을 고정하고, 루트모션 이동량을 해당 방향으로 재투영하는 규칙.
+* **Lunge Motion Distribution Tuning (도약 이동량 분포 보정)**: 실험 9에서 `normalizedTime` 구간별 배수(`midBoost*`, `lateReduce*`)로 Lunge 이동량 분포를 조정하는 방식. `enableMotionDistributionTuning`으로 토글하며, `OnValidate`에서 구간/배수 유효성을 보정한다.
+* **Lunge Root Motion Scale Probe (도약 루트모션 배수 프로브)**: 실제 프레임에 적용된 이동량 배수를 `LastLungeRootMotionMagnitudeScale`과 `[LungeDebug][RootMotion] scale=...` 로그로 노출해 튜닝값 반영 여부를 추적하는 기록 항목.
+* **Lunge Fixed Timing (도약 고정 타이밍)**: 현재 Lunge 패턴은 판정 종료(`normalizedTime 0.8`)와 상태 종료(`normalizedTime 1.0`)를 고정 비율 상수로 운영하는 방식.
 * **Range-Only Detection Trigger (거리 단일 감지 트리거)**: Idle/Searching에서 Combat(스크림 인트로) 진입을 감지 반경(`IsTargetInDetectionRange`)만으로 판정하는 규칙. 장애물/시야선(LOS) 여부와 무관하게 거리 조건만 충족하면 전투 전환이 발생한다.
 * **Chase Hysteresis (추적 히스테리시스)**: 단일 공격 사거리 임계값 대신 현재 페이즈에서 활성화된 패턴의 `최대 사거리`(해제)와 `최대 사거리 + ChaseReengageBuffer`(재진입) 이중 임계값을 두어 Walk/Idle 경계 지터를 완화하는 기법.
 * **Asset+Meta Pair Rule (에셋-메타 쌍 규칙)**: Unity 에셋은 파일만 커밋하면 참조가 보장되지 않는다. 참조 안정성을 위해 원본 에셋과 해당 `.meta`를 반드시 쌍으로 버전관리하는 규칙.

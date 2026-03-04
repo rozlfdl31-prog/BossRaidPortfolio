@@ -79,11 +79,12 @@
 - [x] 🔴**(보스, attack) 패턴별 동적 공격 사거리 적용**: 패턴 1은 근거리 사거리, 그 외 패턴은 더 긴 사거리 사용.
 - [x] 🔴**(보스, phase1) 플레이어 거리에 따른 공격 선택**: Basic/Lunge 범위를 동시에 만족하면 Basic 우선, Basic 범위를 벗어나고 Lunge 범위를 만족하면 Lunge 선택.
 - [x] 🔴**(보스, attack1) Basic 사거리-판정 반경 동기화**: `basicAttackRange`와 `HeadDamageCaster` 반경(`radius`)을 자동 동기화.
-- [ ] 🔴**(보스) attack2 도약 회귀 수정**: 도약을 하면 도약 전 위치로 돌아오지 않고 도약한 곳으로 고정.
-- [ ] 🔴**(보스) attack2 플레이어 위에 서는 것 수정**: 도약을 하기 전 걸어 올 때 플레이어의 머리 위로 올라온다. 수정
+- [x] 🔴**(보스) attack2 도약 회귀 수정**: 도약을 하면 도약 전 위치로 돌아오지 않고 도약한 곳으로 고정.
 - [ ] 🔴**(리포지토리) 보스 모델 공유 누락 수정**: `.gitignore`의 `Assets/FourEvilDragonsPBR/` 규칙을 조정해 `DragonUsurper/Red.prefab` 및 `.meta`를 추적 가능하게 전환.
+- [ ] 🟡**(보스) attack2 플레이어 위에 서는 것 수정**: 도약을 하기 전 걸어 올 때 플레이어의 머리 위로 올라온다.(보류)
 - [ ] 🟢**(플레이어, UI)**: 3번째 공격 UI가 1초 느리게 나온다. 바로 바로 나오는 UI로 수정.
 - [ ] 🟢**(플레이어)**: PlayerController 인스펙터에서 HUD 켜고 끄는 체크박스 기능 만들기, HUD위치 Top center로 변환.
+- [ ] 🟢**(보스) attack2 모델과 로직의 싱크**: 도약을 하면 부모 gameObject가 애니메이션을 못따라간다. (보류)
 
 ---
 
@@ -100,11 +101,13 @@
 - [ ] 🟢**추적 알고리즘 검토**: NavMesh / A* 경로탐색 적용 여부 결정.
 - [ ] 🟢**(플레이어) 리팩토링**: DashState Enter(), input데이터 직접참조를 Update(Input) 여기서 받게 수정.
 - [x] 🟢**(게임매니저) 리팩토링**: Victory, GameOver TextArea로 만들기
-- [x] 🟢**(UI) 움직임 추가**: Press Any Key 깜빡깜빡 효과 추가. fade in & out.
+- [ ] 🟢**(UI) 움직임 추가**: Press Any Key 깜빡깜빡 효과 추가. fade in & out.
 - [ ] 🟢**지형 애셋 추가**: HQ Apocalyptic Environment 이 애셋을 이용해서 대체
 - [ ] 🟢**글씨 다르게 하기**: 글씨 다르게 하기
 - [ ] 🟢**(보스, UI) 리팩토링**: 플레이어가 detect range 안에 있을 때 보스의 체력 UI를 나타나게 하기
 - [ ] 🟢**(플레이어, UI) 리팩토링**: HUD 끄기
+- [ ] 🟢**(보스) Attack2 공격가능한 애니메이션 **: 애니메이션에서 점프 후 때만 공격이 활성화 되게 하기
+
 
 ---
 
