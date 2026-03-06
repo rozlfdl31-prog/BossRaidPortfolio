@@ -83,12 +83,16 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable, IBossA
     private int _projectileHitCount;
     private float _projectileCountTimerLeft;
     private bool _suppressDamageTakenReaction;
+    private float _latestLookYaw;
+    private float _latestLookPitch;
 
     // Public Properties for States
     public float MoveSpeed => moveSpeed;
     public float RotationSpeed => rotationSpeed;
     public float Gravity => Physics.gravity.y;
     public Transform CameraRoot => cameraRoot;
+    public float LatestLookYaw => _latestLookYaw;
+    public float LatestLookPitch => _latestLookPitch;
     public IInputProvider InputProvider => _inputProvider;
     public PlayerVisual Visual => playerVisual;
     public Animator Animator => playerVisual?.Animator;
@@ -185,10 +189,8 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable, IBossA
         if (_inputProvider == null) return;
 
         PlayerInputPacket input = _inputProvider.GetInput();
-        if (cameraRoot != null)
-        {
-            cameraRoot.rotation = Quaternion.Euler(input.lookPitch, input.lookYaw, 0f);
-        }
+        _latestLookYaw = input.lookYaw;
+        _latestLookPitch = input.lookPitch;
 
         _stateMachine.CurrentState?.Update(input);
     }
@@ -198,6 +200,12 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable, IBossA
     /// </summary>
     public Vector3 GetMovementDirection(Vector2 inputDir)
     {
+        if (cameraRoot == null)
+        {
+            Vector3 fallbackDirection = (transform.forward * inputDir.y + transform.right * inputDir.x).normalized;
+            return fallbackDirection;
+        }
+
         Vector3 camForward = cameraRoot.forward;
         camForward.y = 0;
         camForward.Normalize();
@@ -207,6 +215,15 @@ public class PlayerController : MonoBehaviour, IDashContext, IAttackable, IBossA
         camRight.Normalize();
 
         return (camForward * inputDir.y + camRight * inputDir.x).normalized;
+    }
+
+    /// <summary>
+    /// 카메라 시스템이 런타임 CameraRoot를 주입할 수 있도록 setter를 제공한다.
+    /// </summary>
+    public void SetCameraRoot(Transform newCameraRoot)
+    {
+        if (newCameraRoot == null) return;
+        cameraRoot = newCameraRoot;
     }
 
     private void HandleDamage(int damage)

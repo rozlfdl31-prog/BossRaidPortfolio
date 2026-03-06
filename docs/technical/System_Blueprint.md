@@ -62,6 +62,7 @@ classDiagram
         +DeadState DeadState
         +PlayerVisual Visual
         +Update()
+        +SetCameraRoot(Transform)
     }
 
     class BaseState {
@@ -82,6 +83,12 @@ classDiagram
         +PlaySingleBlink()
         +SetBlink(bool)
         +StopBlink()
+    }
+    class ThirdPersonCameraController {
+        <<MonoBehaviour>>
+        +LateUpdate()
+        +FollowOffset Vector3
+        +MouseYawPitchControl
     }
     class CombatHUDController {
         +Initialize(Health, Health)
@@ -124,6 +131,7 @@ classDiagram
     PlayerController --> DamageCaster : controls/subscribes
     PlayerController --> CombatHUDController : updates
     PlayerController --> Health : owns
+    ThirdPersonCameraController --> PlayerController : reads look cache / injects CameraRoot
 
     PlayerBaseState --|> BaseState : extends
     MoveState --|> PlayerBaseState : extends
@@ -409,7 +417,11 @@ classDiagram
 ### [Physics & Movement]
 
 * **Rotation Logic**:
-* `lookYaw`, `lookPitch`: **CameraRoot** 회전용 (마우스 입력).
+* `CameraRoot`: 플레이어 자식이 아닌 월드 앵커로 운용한다. `ThirdPersonCameraController.LateUpdate()`에서 위치/방향을 갱신한다.
+* `lookYaw`, `lookPitch`: 마우스 기반 카메라 회전의 1차 입력(Primary)으로 사용한다.
+* `Auto-Behind Assist`: 런타임 데이터는 유지하되, 현재 인스펙터에서는 숨김 처리한다.
+* `Smoothing Rule`: `Position Smooth Time`/`Rotation Smooth Time` 데이터는 유지하되, 현재 인스펙터에서는 숨김 처리한다.
+* `Inspector Tooltip Rule`: 카메라 튜닝 필드에는 쉬운 영어 툴팁을 제공해 파라미터 의미를 인스펙터에서 바로 이해할 수 있어야 한다.
 * `moveDir`: **Character Body** 회전 및 이동용 (키보드 입력).
 * 캐릭터 몸통은 카메라가 바라보는 방향(`cameraRoot.forward`)을 기준으로 이동 벡터를 변환해야 한다.
 * **Boss Planar Distance Rule**: Boss의 감지/추적/공격 사거리 판정은 Y축을 제외한 수평(XZ) 거리 기준으로 계산한다.
@@ -460,6 +472,7 @@ classDiagram
 | **StateMachine** | ✅ Done | `BossRaid.Patterns` 네임스페이스 적용 및 구현 완료. |
 | **Physics System** | ✅ Done | `NonAlloc` 물리 판정(OverlapSphere) 및 최적화 완료. |
 | **Object Pooling** | ✅ Done | `BossProjectilePool` 기반 투사체 재사용(Prewarm/Max/Expand) 구현 완료. |
+| **Third-Person Camera Module** | ✅ Done | `Assets/Scripts/Camera/ThirdPersonCameraController.cs`를 메인 카메라 측 모듈로 분리해 카메라 설정을 카메라 오브젝트로 이동했다. |
 | **Package Baseline** | ✅ Done | Unity 2022.3 기준으로 package manifest 정리 및 lock 재생성 경로 복구 (`URP/VFX 14.0.12`, `TMP 추가`, Unity 6 전용 의존성 제거). |
 | **External Asset Distribution Policy** | ✅ Done | 런타임 실사용 에셋만 Git/LFS로 선별 추적한다. 기준은 GUID 의존성 폐쇄(씬/프리팹/설정의 직접+간접 참조)이며, `Assets/TextMesh Pro` 루트와 미사용 서드파티 리소스는 제외한다. Unity 참조 안정성을 위해 에셋과 `.meta`를 쌍으로 버전관리한다. |
 
@@ -469,7 +482,7 @@ classDiagram
 | **Movement Logic** | ✅ Done | `MoveState`로 로직 이관 완료. |
 | **Dash Logic** | ✅ Done | Cooldown 및 Edge-triggering 기능 포함 구현 완료. |
 | **Jump Logic** | ✅ Done | `JumpState` 구현 완료. 현재 게임 디자인 기준 점프 입력 전환은 비활성(주석/F10 유지) 상태이며 필요 시 재활성 가능. |
-| **Camera Logic** | ✅ Done | CameraRoot 분리 및 로컬 회전 구현 완료. |
+| **Camera Logic** | ✅ Done | `ThirdPersonCameraController`가 메인 카메라에서 `lookYaw/lookPitch`를 1차 입력으로 처리하고, `CameraRoot`를 관리한다. smoothing/auto-behind 데이터는 유지하되 현재 인스펙터 노출은 숨김 처리되어 있다. |
 | **Attack Logic** | ✅ Done | `AttackState` 구현 완료. 콤보/캔슬/개별 데미지 지원. 상태 전환 시 `AttackState.Exit()`에서 히트박스를 강제 종료해 잔존 판정을 방지하며, `DamageCaster`는 0 데미지 윈도우를 무시한다. |
 | **Hit/Damage System** | ✅ Done | `IDamageable`, `DamageCaster`, `Health` + `IBossAttackHitReceiver` 기반 보스 공격 메타데이터 라우팅 구현 완료. 플레이어는 `StunState`/`Projectile Count Timer`/후속 무적 규칙을 사용하고, 보스는 공격 준비/실행 중 피격 모션을 무시한다. 플레이어/보스의 점멸은 공용 `BlinkWhiteEffect` 컴포넌트(`Assets/Scripts/Common/Visual/BlinkWhiteEffect.cs`)가 담당하며 `_BlinkWhite` 셰이더(`Assets/Shaders/BlinkWhiteLit.shader`)를 `MaterialPropertyBlock`으로 제어한다. |
 | **Asset Integration** | ✅ Done | `PlayerAnimator`의 `Hit/Attack1/2/3/Die` 상태 모션 재연결 완료(2026-02-21). |
