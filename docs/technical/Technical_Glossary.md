@@ -6,7 +6,8 @@
 
 * **The Capsule (플레이어)**: 플레이어가 조작하는 캐릭터 객체. 현재 그래픽이 캡슐 형태이므로 내부적으로 'Player' 또는 'TheCapsule'로 지칭한다.
 * **The Cube (보스)**: 레이드 대상인 AI 보스 객체. 정육면체 형태이며, 'Boss' 또는 'TheCube'로 지칭한다.
-* **CameraRoot**: 플레이어 캐릭터 자식 객체로 존재하며, 카메라의 회전(Pitch, Yaw)의 중심축이 되는 Transform. 캐릭터의 몸통 회전과 독립적으로 동작한다.
+* **CameraRoot**: 플레이어 이동 기준 축으로 사용하는 카메라 앵커 Transform. 런타임 시작 시 플레이어 자식에서 분리되어 월드 공간에서 위치/방향을 추적한다.
+* **ThirdPersonCameraController**: 메인 카메라에 부착되는 3인칭 카메라 전용 컨트롤러(`Assets/Scripts/Camera/ThirdPersonCameraController.cs`). 카메라 추적/회전 설정을 카메라 오브젝트에서 직접 관리한다.
 * **BossVisual**: 보스(`The Cube`)의 애니메이션, UI, 이펙트 등 시각적 요소를 전담하는 컴포넌트. `BossController`의 로직과 분리되어 있다.
 
 ## 2. Input & Network
@@ -29,6 +30,12 @@
 * **Coupling (결합도)**: 두 모듈 간의 의존 정도. `Strong Coupling`은 변경에 취약하고, `Weak Coupling`은 인터페이스 등을 통해 유연하다.
 * **Dependency Injection (의존성 주입)**: 객체가 의존하는 다른 객체를 직접 생성(`new`)하지 않고 외부에서 주입받아 결합도를 낮추는 패턴.
 * **Visual Separation (비주얼 분리)**: 핵심 로직(`Controller`)과 시각적 표현(`Visual`)을 서로 다른 클래스로 분리하여, 로직 변경이 리소스(애니메이션 등)에 영향을 주지 않도록 하는 설계 패턴.
+* **Camera Anchor Decoupling (카메라 앵커 분리)**: 카메라 앵커를 플레이어 자식 계층에서 분리해 부모 회전 상속을 제거하는 구조. 좌우 회전 시 카메라 지터를 줄이고 이동 기준 축을 안정화한다.
+* **Mouse Primary Camera Control (마우스 1차 제어)**: 카메라 yaw/pitch는 `lookYaw/lookPitch` 입력을 기준으로 동작하는 기본 제어 규칙.
+* **Hidden Camera Smoothing Data (숨김 카메라 스무딩 데이터)**: `positionSmoothTime`/`rotationSmoothTime`는 직렬화 데이터로 유지하지만, 현재 인스펙터에는 노출하지 않는 운영 방식.
+* **Hidden Auto-Behind Assist Data (숨김 자동 후방 정렬 데이터)**: `autoBehindAssist` 및 관련 파라미터는 런타임/직렬화 데이터로 유지하지만, 현재 인스펙터에는 노출하지 않는 운영 방식.
+* **Editor Auto-Attach (에디터 자동 부착)**: 플레이 모드뿐 아니라 에디터 로드 시점에도 `Main Camera`에 카메라 컨트롤러를 자동으로 추가해, 플레이 전 인스펙터 튜닝이 가능하도록 만드는 처리.
+* **Inspector Tooltip Guidance (인스펙터 툴팁 가이드)**: 파라미터 의미를 쉽게 이해할 수 있도록 카메라 필드에 짧은 쉬운 영어 설명을 부여하는 규칙.
 * **CombatHUDController**: 전투 HUD 전용 컨트롤러. 플레이어/보스 HP 바, 이름 라벨, 고정형 데미지 텍스트를 한 컴포넌트에서 제어한다.
 * **HUD 이름 라벨 정책**: `Text_PlayerHP`/`Text_BossHP` 슬롯을 체력 수치 대신 이름 라벨(`Player`, `Dragon`) 표시 용도로 사용하는 UI 정책.
 * **HUD 부트스트랩 바인딩**: `PlayerController.InitializeCombatHUD()`에서 HUD 참조/보스 `Health`를 초기 탐색한 뒤 `Initialize`와 이름 라벨 세팅까지 한 번에 수행하는 시작 절차.
