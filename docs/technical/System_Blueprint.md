@@ -482,7 +482,7 @@ classDiagram
 | **Movement Logic** | ✅ Done | `MoveState`로 로직 이관 완료. |
 | **Dash Logic** | ✅ Done | Cooldown 및 Edge-triggering 기능 포함 구현 완료. |
 | **Jump Logic** | ✅ Done | `JumpState` 구현 완료. 현재 게임 디자인 기준 점프 입력 전환은 비활성(주석/F10 유지) 상태이며 필요 시 재활성 가능. |
-| **Camera Logic** | ✅ Done | `ThirdPersonCameraController`가 메인 카메라에서 `lookYaw/lookPitch`를 1차 입력으로 처리하고, `CameraRoot`를 관리한다. smoothing/auto-behind 데이터는 유지하되 현재 인스펙터 노출은 숨김 처리되어 있다. |
+| **Camera Logic** | ✅ Done | `ThirdPersonCameraController`가 메인 카메라에서 `lookYaw/lookPitch`를 1차 입력으로 처리하고, `CameraRoot`를 관리한다. smoothing/auto-behind 데이터는 유지하되 현재 인스펙터 노출은 숨김 처리되어 있다. 기본 hidden smoothing 값은 `positionSmoothTime = 0.01f`, `rotationSmoothTime = 0.01f`다. |
 | **Attack Logic** | ✅ Done | `AttackState` 구현 완료. 콤보/캔슬/개별 데미지 지원. 상태 전환 시 `AttackState.Exit()`에서 히트박스를 강제 종료해 잔존 판정을 방지하며, `DamageCaster`는 0 데미지 윈도우를 무시한다. |
 | **Hit/Damage System** | ✅ Done | `IDamageable`, `DamageCaster`, `Health` + `IBossAttackHitReceiver` 기반 보스 공격 메타데이터 라우팅 구현 완료. 플레이어는 `StunState`/`Projectile Count Timer`/후속 무적 규칙을 사용하고, 보스는 공격 준비/실행 중 피격 모션을 무시한다. 플레이어/보스의 점멸은 공용 `BlinkWhiteEffect` 컴포넌트(`Assets/Scripts/Common/Visual/BlinkWhiteEffect.cs`)가 담당하며 `_BlinkWhite` 셰이더(`Assets/Shaders/BlinkWhiteLit.shader`)를 `MaterialPropertyBlock`으로 제어한다. |
 | **Asset Integration** | ✅ Done | `PlayerAnimator`의 `Hit/Attack1/2/3/Die` 상태 모션 재연결 완료(2026-02-21). |

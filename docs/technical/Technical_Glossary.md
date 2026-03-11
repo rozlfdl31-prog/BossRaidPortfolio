@@ -32,7 +32,7 @@
 * **Visual Separation (비주얼 분리)**: 핵심 로직(`Controller`)과 시각적 표현(`Visual`)을 서로 다른 클래스로 분리하여, 로직 변경이 리소스(애니메이션 등)에 영향을 주지 않도록 하는 설계 패턴.
 * **Camera Anchor Decoupling (카메라 앵커 분리)**: 카메라 앵커를 플레이어 자식 계층에서 분리해 부모 회전 상속을 제거하는 구조. 좌우 회전 시 카메라 지터를 줄이고 이동 기준 축을 안정화한다.
 * **Mouse Primary Camera Control (마우스 1차 제어)**: 카메라 yaw/pitch는 `lookYaw/lookPitch` 입력을 기준으로 동작하는 기본 제어 규칙.
-* **Hidden Camera Smoothing Data (숨김 카메라 스무딩 데이터)**: `positionSmoothTime`/`rotationSmoothTime`는 직렬화 데이터로 유지하지만, 현재 인스펙터에는 노출하지 않는 운영 방식.
+* **Hidden Camera Smoothing Data (숨김 카메라 스무딩 데이터)**: `positionSmoothTime`/`rotationSmoothTime`는 직렬화 데이터로 유지하지만, 현재 인스펙터에는 노출하지 않는 운영 방식. 현재 기본값은 둘 다 `0.01f`다.
 * **Hidden Auto-Behind Assist Data (숨김 자동 후방 정렬 데이터)**: `autoBehindAssist` 및 관련 파라미터는 런타임/직렬화 데이터로 유지하지만, 현재 인스펙터에는 노출하지 않는 운영 방식.
 * **Editor Auto-Attach (에디터 자동 부착)**: 플레이 모드뿐 아니라 에디터 로드 시점에도 `Main Camera`에 카메라 컨트롤러를 자동으로 추가해, 플레이 전 인스펙터 튜닝이 가능하도록 만드는 처리.
 * **Inspector Tooltip Guidance (인스펙터 툴팁 가이드)**: 파라미터 의미를 쉽게 이해할 수 있도록 카메라 필드에 짧은 쉬운 영어 설명을 부여하는 규칙.
