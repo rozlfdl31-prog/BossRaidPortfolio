@@ -1155,8 +1155,8 @@ MonoBehaviour:
   playerController: {fileID: 1585844237}
   followTarget: {fileID: 1585844235}
   cameraRoot: {fileID: 0}
-  positionSmoothTime: 0.08
-  rotationSmoothTime: 0.06
+  positionSmoothTime: 0.01
+  rotationSmoothTime: 0.01
   targetHeight: 1.51
   followOffset: {x: 0, y: 2.35, z: -8.08}
   minPitch: -40
