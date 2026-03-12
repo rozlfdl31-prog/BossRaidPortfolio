@@ -197,7 +197,7 @@ MonoBehaviour:
   _headDamageCaster: {fileID: 375716743}
   _lungeDamageCaster: {fileID: 1119454101}
   lungeAttackSettings:
-    damageMultiplier: 30
+    damageMultiplier: 3
     damageCastNormalizedWindow: {x: 0.34, y: 0.8}
   projectileAttackSettings:
     warningDuration: 0.3
