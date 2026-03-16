@@ -382,7 +382,14 @@ classDiagram
         <<MonoBehaviour>>
         -GameSceneId _nextSceneId
         -float _inputLockDuration
+        -bool _keepRuntimeRootInEditMode
+        -TitlePanelState _currentPanelState
+        -LobbyRole _currentLobbyRole
+        +OnEnable()
+        +Awake()
         +Update()
+        +ShowPanel()
+        +HandleSoloPlaySelected()
     }
 
     class SceneLoader {
@@ -517,16 +524,17 @@ classDiagram
 | Component | Status | Note |
 | --- | --- | --- |
 | **UI System** | ✅ Done | 전투 HUD 배치 + `CombatHUDController` 연동 완료. `Health.OnDamageTaken/OnDeath` 이벤트로 플레이어/보스 HP Fill을 즉시 갱신하고, `DamageCaster.OnAttackWindowResolved` 결과를 `HIT + 피해량` 고정형 피드백(스케일 강조 후 짧은 페이드 아웃)으로 표시한다. 이름 라벨(`Player`, `Dragon`) 및 `ShowHud(bool)` 기반 전체 표시 제어를 포함한다. |
+| **Title Multiplayer UI** | 🔃 progress | `TitleSceneController`가 기존 캔버스 위에 `TitleMainPanel / MultiplayerModePanel / HostCreatePanel / ClientJoinPanel / LobbyPanel / WrongKeyPopup`을 구성한다. 현재 단계는 UI 프로토타입이며, Host는 auto room title + random join code + 2초 `Start` unlock gate를 표시하고, Client는 6자리 join code 형식 검증과 wrong key popup만 처리한다. 추가로 `ExecuteAlways` + existing-root rebind 경로를 통해 `TitleRuntimeRoot`를 Edit Mode에서도 생성/재사용하므로, Unity Editor에서 패널 배치를 직접 조정한 뒤 같은 오브젝트를 Play Mode에서도 이어서 사용한다. 실제 `Relay / Lobby / NGO` 서비스 연동은 후속 작업이다. |
 
 ### 4.5. Game Logic & Flow
 | Component | Status | Note |
 | --- | --- | --- |
-| **Game Loop** |  ✅ Done | `TitleSceneController`로 아무 키 입력 시작점을 분리했고, `SceneLoader` + `LoadingSceneController` 경유 전투 진입/`GameManager` 결과 처리까지 연결했다. `GamePlayScene_TestResult` + `SimultaneousDeathTest`로 동시 사망 시 `Victory` 출력 검증을 완료했다. 일반 실플레이 회귀 시나리오 검증은 남아 있다. |
+| **Game Loop** |  ✅ Done | `TitleSceneController`가 `Solo Play / Multi Play` 버튼 기반 시작 흐름을 관리하고, `SceneLoader` + `LoadingSceneController` 경유 전투 진입/`GameManager` 결과 처리까지 연결한다. Solo는 기존 전투 진입 흐름을 유지하고, Multi는 Host/Client/Lobby 패널 전환까지 UI 프로토타입으로 제공한다. `GamePlayScene_TestResult` + `SimultaneousDeathTest`로 동시 사망 시 `Victory` 출력 검증을 완료했다. 일반 실플레이 회귀 시나리오 검증은 남아 있다. |
 
 ### 4.6. Network Architecture
 | Component | Status | Note |
 | --- | --- | --- |
-| **Netcode Prep** | ⬜ Todo | 추후 `NetworkInputProvider` 추가 예정. |
+| **Netcode Prep** | ⬜ Todo | 추후 `NetworkInputProvider`와 `Relay / Lobby / NGO` 서비스 초기화 계층을 추가할 예정. 현재 `TitleScene` 멀티 UI는 서비스 미연동 프로토타입 단계다. |
 
 ---
 
