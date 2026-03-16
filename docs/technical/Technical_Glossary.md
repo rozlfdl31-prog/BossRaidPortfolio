@@ -81,7 +81,7 @@
 * **Planar Distance Gate (평면 거리 게이트)**: Boss의 상태 전환 거리 판정에서 높이(Y)를 제외하고 XZ 평면 거리만 사용해 점프/지형 높이 차로 인한 오판정을 줄이는 규칙.
 * **Pattern Attack Range (패턴별 공격 사거리)**: `BossController`가 공격 패턴마다 별도 사거리(`Basic`, `Lunge`, `Projectile`, `AoE`)를 가지는 규칙. 공격 패턴 선택 시 현재 거리에서 유효한 패턴만 후보로 포함한다.
 * **Basic Range Origin (기본 공격 사거리 기준점)**: Basic 패턴 거리 판정의 시작점 Transform. `basicAttackRangeOrigin`으로 주입하며, 미할당 시 Boss Root를 사용한다. 현재 기본 씬에서는 `HeadDamageCasterPlace`를 기준점으로 사용한다.
-* **Basic Range-Hitbox Sync (기본 사거리-히트박스 반경 동기화)**: `basicAttackRange`를 `HeadDamageCaster.radius`와 동일 값으로 유지해 공격 가능 거리 판단과 실제 타격 판정 반경이 일치하도록 보장하는 규칙.
+* **Basic Range Single Source (기본 사거리 단일 source)**: Attack1의 조정 가능한 사거리 값은 `HeadDamageCaster.radius` 하나만 사용한다. `BossController.BasicAttackRange`와 Basic gizmo는 이 값을 읽어 공격 가능 거리 판단과 실제 타격 판정 반경이 같은 source를 공유한다. 숨겨진 `basicAttackRange` 필드는 `HeadDamageCaster` 미할당 시 legacy fallback으로만 남긴다.
 * **Logic-Owned DamageCaster (로직 소유 DamageCaster)**: `DamageCaster` 컴포넌트를 Boss root 또는 로직 전용 자식에 두고, 공격 시점/Owner/HitType은 `BossController`와 패턴 로직이 관리하는 배치 방식. Visual hierarchy에는 위치 추종용 앵커만 남긴다.
 * **Visual Cast Anchor (비주얼 판정 앵커)**: `HeadDamageCasterPlace`, `BodyDamageCasterPlace`처럼 Visual/Bone 계층에 남겨두는 위치 기준 Transform. `DamageCaster`는 이 앵커를 `_castCenter`로 사용해 본 이동만 추종한다.
 * **Phase1 Attack Priority (페이즈1 공격 우선순위)**: Phase1에서 Basic/Lunge 사거리 조건이 동시에 성립하면 Basic을 우선 선택하는 규칙. Lunge는 Basic 범위를 벗어난 경우에만 선택한다.

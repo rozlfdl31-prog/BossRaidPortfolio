@@ -35,6 +35,8 @@ namespace Core.Combat
         private int _attackWindowTotalDamage = 0;
         private bool _attackWindowOpen = false;
 
+        public float Radius => Mathf.Max(0f, _radius);
+
         // 한 번의 공격(Enable~Disable 기간) 동안 중복 피격을 방지하기 위한 Set
         private HashSet<int> _hitTargets = new HashSet<int>();
         private int _ownerInstanceID = 0; // 자신을 타격하지 않도록 Owner ID 저장
@@ -52,6 +54,11 @@ namespace Core.Combat
             if (_castCenter == null)
             {
                 _castCenter = transform;
+            }
+
+            if (_radius < 0f)
+            {
+                _radius = 0f;
             }
 
             if (_maxTargets < 1)
@@ -112,7 +119,7 @@ namespace Core.Combat
         }
 
         /// <summary>
-        /// 공격 판정 반경을 외부에서 동기화할 때 사용한다.
+        /// 공격 판정 반경을 외부에서 설정할 때 사용한다.
         /// </summary>
         public void SetRadius(float radius)
         {

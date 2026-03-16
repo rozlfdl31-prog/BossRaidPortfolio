@@ -8,7 +8,7 @@
 | 속성 (Property) | 설명 (Description) |
 | :--- | :--- |
 | **Detection Range** | 보스가 의심 상태에서 플레이어를 감지할 수 있는 최대 반경입니다. (`detectionRange`) |
-| **Attack Range** | 보스가 공격 행동을 시작하는 유효 사거리입니다. (`attackRange`) |
+| **Attack Range** | 보스가 공격 행동을 시작하는 유효 사거리입니다. 현재 Basic Attack의 editable range source는 `HeadDamageCaster.radius`입니다. |
 | **View Obstacles** | 보스의 시야를 차단하는 장애물 레이어(LayerMask)입니다. (예: 벽, 기둥) |
 | **Search Duration** | 플레이어를 놓쳤을 때, 대기 상태로 돌아가기 전까지 수색하는 지속 시간입니다. |
 
@@ -102,7 +102,7 @@ flowchart TD
 ## 5. 시각적 디버깅 (Visual Debugging - Gizmo)
 기획자가 씬 뷰(Scene View)에서 범위를 직관적으로 확인하고 조정할 수 있도록 지원합니다.
 
-*   **Red WireSphere**: 공격 범위 (`attackRange`)
+*   **Red WireSphere**: Basic 공격 범위 (`HeadDamageCaster.radius` 기반)
 *   **Yellow WireSphere**: 감지 범위 (`detectionRange`)
 *   **Ray Visualization**: 플레이어 방향으로 레이를 그려 시야 확보 여부를 색상으로 표시 (초록=확보, 빨강=차단).
 

@@ -110,6 +110,7 @@
 ### 7주차: 멀티플레이 구현
 
 #### 🚧 버그
+- [x] 🟢**(보스, 공격범위)**: Attack1 editable range source를 `HeadDamageCaster.radius`로 단일화하고, `BossController.basicAttackRange`는 인스펙터에서 숨김 + legacy fallback으로만 유지.
 
 #### 멀티플레이어
 - [ ] NGO/UTP/Relay/Lobby 패키지 및 서비스 초기화
@@ -140,6 +141,7 @@
 - [x] 🟡**(플레이어) Attack3 넉백 거리 수정**: Projectile로 스턴생기면 stun distance보다 멀리 나간다. 넉백길이 일정하게 수정
 - [ ] 🟡**(보스, 애니메이션) 2페이즈 생략**: 페이즈 변환할 때 때려도 페이즈변환 무시 안되게 하기.
 - [x] 🟢**(리포지토리) 보스 모델 공유 누락 수정**: `FourEvilDragonsPBR/DragonUsurper`의 `Red.prefab(.meta)`와 `UNI VFX`의 `Crushing Pull Gold.prefab(.meta)`만 `.gitignore` 예외로 허용하도록 규칙을 조정
+- [x] 🟢**(보스, 공격범위)**: Attack1 editable range source를 `HeadDamageCaster.radius`로 단일화하고, `BossController.basicAttackRange`는 인스펙터에서 숨김 + legacy fallback으로만 유지.
 - [ ] 🟢**(플레이어, UI)**: 3번째 공격 UI가 1초 느리게 나온다. 바로 바로 나오는 UI로 수정.
 ~~- [ ] 🟢**(보스) attack2 모델과 로직의 싱크**: 도약을 하면 부모 gameObject가 애니메이션을 못따라간다. (보류)~~
 - [ ] ~~🟢**(플레이어)**: PlayerController 인스펙터에서 HUD 켜고 끄는 체크박스 기능 만들기, HUD위치 Top center로 변환.~~

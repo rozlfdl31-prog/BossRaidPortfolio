@@ -60,7 +60,7 @@ namespace Core.Boss
 
         [Header("패턴별 공격 사거리 (Pattern Attack Ranges)")]
         [FormerlySerializedAs("attackRange")]
-        [SerializeField] private float basicAttackRange = 2.5f;
+        [SerializeField, HideInInspector] private float basicAttackRange = 2.5f;
         [SerializeField] private float lungeAttackRange = 4.5f;
         [SerializeField] private float projectileAttackRange = 6.0f;
         [SerializeField] private float aoeAttackRange = 6.0f;
@@ -164,8 +164,6 @@ namespace Core.Boss
             if (chaseReengageBuffer < 0f) chaseReengageBuffer = 0f;
             if (lungeRootMotionDebugLogInterval < 0.01f) lungeRootMotionDebugLogInterval = 0.01f;
 
-            SyncBasicAttackRangeToHeadDamageCaster();
-
             if (lungeAttackSettings != null)
             {
                 lungeAttackSettings.ClampValues();
@@ -187,7 +185,7 @@ namespace Core.Boss
         public float MoveSpeed => moveSpeed;
         public float SearchingMoveSpeed => searchingMoveSpeed;
         public float DetectionRange => detectionRange;
-        public float BasicAttackRange => basicAttackRange;
+        public float BasicAttackRange => _headDamageCaster != null ? _headDamageCaster.Radius : Mathf.Max(0f, basicAttackRange);
         public float LungeAttackRange => lungeAttackRange;
         public float ProjectileAttackRange => projectileAttackRange;
         public float AoEAttackRange => aoeAttackRange;
@@ -278,7 +276,6 @@ namespace Core.Boss
                 _lungeDamageCaster.SetBossAttackHitType(BossAttackHitType.Attack2);
             }
 
-            SyncBasicAttackRangeToHeadDamageCaster();
             TryApplyPlayerCollisionIgnore();
             damageBlinkEffect?.StopBlink();
             _stateMachine.ChangeState(IdleState);
@@ -645,15 +642,6 @@ namespace Core.Boss
             _nextAttackTime = Time.time + attackCooldown;
         }
 
-        /// <summary>
-        /// Basic 공격 사거리와 Head DamageCaster 반경을 동일하게 유지한다.
-        /// </summary>
-        private void SyncBasicAttackRangeToHeadDamageCaster()
-        {
-            if (_headDamageCaster == null) return;
-            _headDamageCaster.SetRadius(basicAttackRange);
-        }
-
         private void TryApplyPlayerCollisionIgnore()
         {
             if (!ignorePlayerCollision) return;
@@ -706,7 +694,7 @@ namespace Core.Boss
             Vector3 basicOrigin = basicAttackRangeOrigin != null
                 ? basicAttackRangeOrigin.position
                 : transform.position;
-            Gizmos.DrawWireSphere(basicOrigin, basicAttackRange);
+            Gizmos.DrawWireSphere(basicOrigin, BasicAttackRange);
 
             Gizmos.color = new Color(1f, 0.55f, 0f);
             Gizmos.DrawWireSphere(transform.position, lungeAttackRange);
