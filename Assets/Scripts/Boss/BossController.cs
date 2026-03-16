@@ -74,6 +74,9 @@ namespace Core.Boss
         [SerializeField] private float attackDuration = 1.0f;
         [SerializeField] private float attackCooldown = 2.0f;
 
+        [Header("Basic Attack Settings")]
+        [SerializeField] private BasicAttackSettings basicAttackSettings;
+
         [Header("부위별 DamageCaster (Explicit per-part)")]
         [Tooltip("Basic Attack(물기) 판정용 - Head Bone에 부착")]
         [SerializeField] private DamageCaster _headDamageCaster;
@@ -164,6 +167,15 @@ namespace Core.Boss
             if (chaseReengageBuffer < 0f) chaseReengageBuffer = 0f;
             if (lungeRootMotionDebugLogInterval < 0.01f) lungeRootMotionDebugLogInterval = 0.01f;
 
+            if (basicAttackSettings == null)
+            {
+                basicAttackSettings = new BasicAttackSettings();
+            }
+            else
+            {
+                basicAttackSettings.ClampValues();
+            }
+
             if (lungeAttackSettings != null)
             {
                 lungeAttackSettings.ClampValues();
@@ -193,6 +205,7 @@ namespace Core.Boss
         public float SearchDuration => searchDuration;
         public int AttackDamage => attackDamage;
         public float AttackDuration => attackDuration;
+        public BasicAttackSettings BasicAttackConfig => basicAttackSettings;
         public bool CanAttack => Time.time >= _nextAttackTime;
         public DamageCaster HeadDamageCaster => _headDamageCaster;
         public DamageCaster LungeDamageCaster => _lungeDamageCaster;
@@ -217,6 +230,7 @@ namespace Core.Boss
             _characterController = GetComponent<CharacterController>();
             _health = GetComponent<Health>();
             ResolveDamageBlinkEffect();
+            if (basicAttackSettings == null) basicAttackSettings = new BasicAttackSettings();
             if (projectileAttackSettings == null) projectileAttackSettings = new ProjectileAttackSettings();
             if (lungeAttackSettings == null) lungeAttackSettings = new LungeAttackSettings();
             if (aoeAttackSettings == null) aoeAttackSettings = new AoEAttackSettings();
@@ -710,6 +724,25 @@ namespace Core.Boss
         }
 
         #endregion
+
+        [System.Serializable]
+        public class BasicAttackSettings
+        {
+            [Tooltip("How long the selected ready slice should take in seconds")]
+            public float readyDuration = 0.2f;
+
+            [MinMaxRange(0f, 1f)]
+            [Tooltip("Attack1 ready slice in normalized time (x = start, y = end)")]
+            public Vector2 readyNormalizedWindow = new Vector2(0.15f, 0.45f);
+
+            public void ClampValues()
+            {
+                if (readyDuration < 0f) readyDuration = 0f;
+
+                readyNormalizedWindow.x = Mathf.Clamp01(readyNormalizedWindow.x);
+                readyNormalizedWindow.y = Mathf.Clamp(readyNormalizedWindow.y, readyNormalizedWindow.x, 1f);
+            }
+        }
 
         [System.Serializable]
         public class LungeAttackSettings

@@ -82,6 +82,8 @@
 * **Pattern Attack Range (패턴별 공격 사거리)**: `BossController`가 공격 패턴마다 별도 사거리(`Basic`, `Lunge`, `Projectile`, `AoE`)를 가지는 규칙. 공격 패턴 선택 시 현재 거리에서 유효한 패턴만 후보로 포함한다.
 * **Basic Range Origin (기본 공격 사거리 기준점)**: Basic 패턴 거리 판정의 시작점 Transform. `basicAttackRangeOrigin`으로 주입하며, 미할당 시 Boss Root를 사용한다. 현재 기본 씬에서는 `HeadDamageCasterPlace`를 기준점으로 사용한다.
 * **Basic Range Single Source (기본 사거리 단일 source)**: Attack1의 조정 가능한 사거리 값은 `HeadDamageCaster.radius` 하나만 사용한다. `BossController.BasicAttackRange`와 Basic gizmo는 이 값을 읽어 공격 가능 거리 판단과 실제 타격 판정 반경이 같은 source를 공유한다. 숨겨진 `basicAttackRange` 필드는 `HeadDamageCaster` 미할당 시 legacy fallback으로만 남긴다.
+* **Attack1 Ready Window (Attack1 준비동작 윈도우)**: Attack1에서 실제 bite 판정이 열리기 전에 유지되는 준비 구간. `BasicAttackSettings.readyNormalizedWindow`로 bite 애니메이션의 어느 slice를 ready motion으로 쓸지 정하고, `HeadDamageCaster`는 이 구간이 끝날 때까지 비활성 상태를 유지한다.
+* **Attack1 Ready Duration (Attack1 준비 시간)**: `BasicAttackSettings.readyDuration` 값. 선택한 ready slice가 몇 초 동안 재생될지 정하며, 구현은 `Animator.speed` 임시 보정으로 해당 구간의 재생 시간을 다시 맞춘다.
 * **Logic-Owned DamageCaster (로직 소유 DamageCaster)**: `DamageCaster` 컴포넌트를 Boss root 또는 로직 전용 자식에 두고, 공격 시점/Owner/HitType은 `BossController`와 패턴 로직이 관리하는 배치 방식. Visual hierarchy에는 위치 추종용 앵커만 남긴다.
 * **Visual Cast Anchor (비주얼 판정 앵커)**: `HeadDamageCasterPlace`, `BodyDamageCasterPlace`처럼 Visual/Bone 계층에 남겨두는 위치 기준 Transform. `DamageCaster`는 이 앵커를 `_castCenter`로 사용해 본 이동만 추종한다.
 * **Phase1 Attack Priority (페이즈1 공격 우선순위)**: Phase1에서 Basic/Lunge 사거리 조건이 동시에 성립하면 Basic을 우선 선택하는 규칙. Lunge는 Basic 범위를 벗어난 경우에만 선택한다.
@@ -140,7 +142,8 @@
 * **Zero-Damage Filter (무데미지 필터)**: `DamageCaster.EnableHitbox`와 `Health.TakeDamage`에서 0 이하 데미지를 무시해 피격 이벤트/애니메이션 오작동을 방지하는 안전 장치.
 * **Animation Event Bridge**: 애니메이터의 타임라인 이벤트를 코드 로직(`PlayerController` 등)으로 연결해주는 중계 클래스.
 * **IBossAttackPattern**: 보스 공격 패턴 인터페이스 (Strategy Pattern 적용). `Enter`/`Update`/`Exit` 메서드를 정의하여 `BossAttackState`가 구체 패턴을 몰라도 실행할 수 있게 함.
-* **BasicAttackPattern**: `IBossAttackPattern`의 기본 구현체. 보스의 근접 공격(애니메이션 재생 + DamageCaster 활성화 + 타이머 기반 종료)을 측술화.
+* **BasicAttackPattern**: `IBossAttackPattern`의 기본 구현체. 보스의 근접 공격에서 bite 애니메이션 재생, ready slice 재생 시간 보정, 준비 구간 종료 후 `HeadDamageCaster` 오픈, `normalizedTime 1.0` 기준 종료를 담당한다.
+* **Animator Playback Speed Override (애니메이터 재생 속도 오버라이드)**: 특정 공격 구간의 재생 시간을 맞추기 위해 `Animator.speed`를 임시로 변경하는 처리. Attack1 준비동작에서는 ready slice 동안만 적용하고, 상태 종료/인터럽트 시 반드시 `1.0`으로 복구한다.
 * **Invincibility Frame (무적 시간)**: 특정 구간 동안 추가 데미지를 차단하는 보호 기간. 현재 플레이어는 `stunned` 또는 `post-stun invulnerability` 상태에서 `Health.SetInvincible(true/false)`로 제어한다.
 * **Bone-Synced Hitbox (본 동기화 피격 판정)**: `DamageCaster._castCenter`를 스켈레톤의 Bone 자식 Transform으로 설정하여, 애니메이션에 따라 히트박스 위치가 자동으로 동기화되는 기법. `DamageCaster` 컴포넌트 자체는 로직 계층에 두고, 위치만 Bone 앵커를 따라가게 구성할 수 있다.
 * **Partial Animation (부분 애니메이션)**: 애니메이션 클립 전체를 재생하지 않고, 특정 구간(예: 도약 부분)만 재생한 후 강제로 종료(`exitPhaseRatio`)하여 동작의 템포를 조절하는 기법. 복귀 모션 등을 생략하여 타격감을 높일 때 사용됨.
@@ -163,6 +166,7 @@
 * **GroundSnap Failure Reason (GroundSnap 실패 사유 코드)**: `GroundSnapMiss`/`GroundSnapSkipMaxDistance` 로그에 `InvalidSetup`, `MaskEmpty`, `NoHit`, `AllFiltered` 같은 원인 코드를 명시해 착지 보정 실패의 원인을 즉시 판별하는 규칙.
 * **Attack2 Core Timing Trio (Attack2 핵심 타이밍 3종)**: `preLaunchStartNormalizedTime`, `launchNormalizedTime`, `landSnapNormalizedTime`의 묶음. Windup/PreLaunch/Airborne/LandSnap 구간 경계를 정의하는 1차 튜닝 축이다.
 * **Attack2 Inspector Damage Window Gauge (Attack2 인스펙터 피격 윈도우 게이지)**: `damageCastNormalizedWindow`를 기본 인스펙터에서 2핸들 MinMax 슬라이더와 `Start/End` float field로 표시하는 UX. Attack2 DamageCaster 활성 구간을 `normalizedTime 0~1` 범위에서 직접 튜닝한다.
+* **Attack1 Inspector Ready Gauge (Attack1 인스펙터 준비 게이지)**: `readyNormalizedWindow`를 기본 인스펙터에서 2핸들 MinMax 슬라이더와 `Start/End` float field로 표시하는 UX. Attack1 bite 애니메이션 안에서 어떤 구간을 ready motion으로 쓸지 `normalizedTime 0~1` 범위로 직접 튜닝한다.
 * **Attack2 Player Y Trace (`[Attack2PlayerY]`)**: 플레이어가 Attack2 근접/피격/스턴 이동 구간에서 출력하는 디버그 로그 태그. `playerY`, `bottomY/topY`, `grounded`, `ccVelY`, `CollisionFlags`, 현재 상태, 보스 Attack2 거리/정규화 시간을 함께 기록해 하반신 잠김 원인을 추적한다.
 * **Attack2 Gizmo Feature Toggle Set (Attack2 기즈모 기능 토글 세트)**: `showAttackRangesGizmo`, `showDetectionRangeGizmo`, `showAttack2GroundProbeGizmo`, `showAttack2SnapWindowGizmo`, `showAttack2SpatialLineGizmo`의 묶음. 필요한 진단 기즈모만 선택 출력해 디버깅 노이즈를 줄이는 규칙이다.
 * **Ground Probe Gizmo (지면 프로브 기즈모)**: Attack2의 `groundRayStartHeight`, `groundRayDistance`, `groundMask` 기준으로 실제 Ray 시작점/길이/히트 지점을 Scene 뷰에 표시하는 시각 진단 도구.
@@ -206,4 +210,3 @@
 ## Unity Compatibility Addendum (2026-02-20)
 - **Editor Assembly Anchor (에디터 어셈블리 앵커)**: `Assets/Editor`에 최소 1개 스크립트를 유지해 `Assembly-CSharp-Editor` 생성이 보장되도록 하는 안정화 패턴.
 - **Unity API Drift (API 드리프트)**: Unity 버전 전환 시 동일 기능의 프로퍼티/메서드 시그니처가 달라져 발생하는 호환성 문제. 본 프로젝트에서는 `Rigidbody.linearVelocity` -> `Rigidbody.velocity` 교체로 복구.
-

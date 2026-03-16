@@ -60,6 +60,18 @@ namespace Core.Boss
             if (_animator) _animator.SetFloat(AnimSpeed, speed);
         }
 
+        public void SetAnimatorPlaybackSpeed(float speed)
+        {
+            if (_animator == null) return;
+            _animator.speed = Mathf.Max(0.01f, speed);
+        }
+
+        public void ResetAnimatorPlaybackSpeed()
+        {
+            if (_animator == null) return;
+            _animator.speed = 1f;
+        }
+
         public void SetLungeRootMotionEnabled(bool enabled)
         {
             if (_animator == null) return;
@@ -80,6 +92,11 @@ namespace Core.Boss
         }
 
         public void PlayAttack() => CrossFade(AnimBasicAttack);
+
+        public float GetBasicAttackClipLengthOrDefault(float fallback)
+        {
+            return GetClipLengthOrDefault(ANIM_BASIC_ATTACK, fallback);
+        }
         public void PlayLungeAttack()
         {
             if (_animator && _animator.HasState(0, AnimLungeAttack))

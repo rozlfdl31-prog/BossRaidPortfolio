@@ -178,6 +178,7 @@ classDiagram
         +BossVisual Visual
         +DamageCaster HeadDamageCaster
         +DamageCaster LungeDamageCaster
+        +BasicAttackSettings BasicAttackSettings
         +LungeAttackSettings LungeAttackSettings
         +ProjectileAttackSettings ProjectileAttackSettings
         +BossProjectilePool ProjectilePool
@@ -298,10 +299,15 @@ classDiagram
     }
 
     class BasicAttackPattern {
-        -float _timer
+        -bool _damageWindowOpen
         +Enter(BossController)
         +Update(BossController) bool
         +Exit(BossController)
+    }
+
+    class BasicAttackSettings {
+        +readyDuration float
+        +readyNormalizedWindow Vector2
     }
 
     class LungeAttackPattern {
@@ -355,6 +361,8 @@ classDiagram
     IBossAttackPattern <|.. ProjectileAttackPattern : Implements
     IBossAttackPattern <|.. AoEAttackPattern : Implements
     BossController --> BasicAttackPattern : Owns
+    BossController --> BasicAttackSettings : Owns
+    BasicAttackPattern --> BasicAttackSettings : Reads
     BossController --> LungeAttackPattern : Owns
     LungeAttackPattern --> LungeAttackSettings : Uses
     BossController --> ProjectileAttackPattern : Owns
@@ -446,11 +454,13 @@ classDiagram
 * **Boss Pattern Range Rule**: 보스 공격 사거리는 패턴별 인스펙터 값(`Basic`, `Lunge`, `Projectile`, `AoE`)으로 분리하며, 패턴 선택 시 현재 거리에서 유효한 패턴만 후보로 포함한다.
 * **Boss Basic Range Origin Rule**: Basic 공격 사거리 판정은 `basicAttackRangeOrigin` 기준점에서 타겟까지의 XZ 거리로 계산한다. 기준점이 비어 있으면 Boss Root를 폴백으로 사용한다. 기본 씬 설정은 `HeadDamageCasterPlace`를 사용한다.
 * **Boss Basic Range Single-Source Rule**: Basic 공격의 조정 가능한 범위 값은 `HeadDamageCaster.radius` 하나만 사용한다. `BossController.BasicAttackRange`와 Basic range gizmo는 이 값을 직접 읽어 사거리 판정과 실제 타격 반경이 항상 같은 source를 공유해야 한다. 숨겨진 `basicAttackRange` 직렬화 필드는 `HeadDamageCaster`가 비어 있을 때만 legacy fallback으로 사용한다.
+* **Boss Attack1 Ready Window Rule**: Attack1의 준비동작은 `BasicAttackSettings.readyDuration` + `readyNormalizedWindow`로 조절한다. 선택한 normalized slice는 해당 시간만큼 재생되도록 `Animator.speed`를 임시 보정하고, `HeadDamageCaster`는 준비 구간이 끝날 때까지 비활성 상태를 유지한다. 상태 종료/인터럽트 시에는 playback speed를 `1.0`으로 복구해야 한다.
 * **Boss DamageCaster Ownership Rule**: Basic/Lunge `DamageCaster`는 `BossVisual` 자식 Bone에 직접 두지 않고 Boss 로직 계층에 둔다. 실제 판정 위치 추종은 `_castCenter`에 할당된 `HeadDamageCasterPlace`/`BodyDamageCasterPlace`가 담당한다.
 * **Boss Phase1 Attack Priority Rule**: Phase1에서 Basic/Lunge 조건이 동시에 만족되면 Basic을 우선 선택한다. Lunge는 Basic 범위를 벗어났고 Lunge 범위는 만족할 때만 선택한다.
 * **Boss Lunge Root Motion Relay Rule**: Lunge 이동은 `rushPhaseRatio/MoveRaw` 수동 전진이 아니라, Animator `OnAnimatorMove`의 루트모션 델타를 `BossController.ApplyLungeRootMotion(deltaPosition, normalizedTime)`으로 전달해 부모 루트를 이동시킨다. 활성화 구간은 `SetLungeRootMotionEnabled(true/false)`로 제한하며, 릴레이는 시작 시 `Visual` 로컬 기준 포즈를 캐시하고 `OnAnimatorMove`/종료 시 복원해 부모 루트와 자식 비주얼 좌표 분리를 방지한다. `ResolveAppliedDeltaPosition` 기본 경로는 XZ Animator 델타를 사용하고, 미소 프레임에서는 Visual 월드 델타 폴백을 사용한다.
 * **Boss Lunge Motion Distribution Tuning Rule**: 실험 9에서는 Lunge `normalizedTime` 구간별 이동량 배분 보정을 위해 `LungeAttackSettings`의 `midBoost*`/`lateReduce*` 파라미터를 적용한다. `OnValidate`에서 시작/종료 구간은 `0~1`로 clamp하고, 종료값이 시작값보다 작으면 시작값으로 보정하며, 배수(`midBoostScale`, `lateReduceScale`)는 `0` 이상으로 강제한다.
 * **Boss Lunge Damage Window Rule**: Lunge 판정 타이밍은 고정 상수 대신 `LungeAttackSettings.damageCastNormalizedWindow`를 사용한다. `Start/End`는 `0~1` 범위로 clamp하며, `LungeAttackPattern`은 해당 `normalizedTime` 구간에서만 `LungeDamageCaster`를 열고, 상태 종료 시점은 `1.0`을 유지한다.
+* **Attack1 Inspector Ready Gauge Rule**: Attack1의 준비 시작/종료는 기본 인스펙터에서 2핸들 MinMax 슬라이더와 `Start/End` float field로 노출한다. 디자이너는 `normalizedTime 0~1` 범위 안에서 어떤 bite slice를 ready motion으로 쓸지 직접 튜닝할 수 있어야 한다.
 * **Boss Attack2 Phase Marker Rule**: Attack2의 구간 분리(`Windup -> PreLaunch -> Launch -> Airborne -> Land`)는 애니메이션 이벤트(예: `PreLaunchStart`, `Launch`, `Land`)를 우선 기준으로 사용한다. 이벤트는 단일 슬롯이 아닌 큐(Queue)로 누적/소비해 프레임 드랍 시 마커 유실을 방지한다. 이벤트 누락 시에는 `normalizedTime` 임계값 폴백으로 동일 전이를 보장하고, 누락 마커는 `MarkerPathWarn` 로그로 추적한다.
 * **Boss Attack2 Launch Guard Rule**: Attack2의 `launchNormalizedTime`/`landSnapNormalizedTime`은 종료 시점(`1.0`) 이전 상한(`0.98`)으로 강제한다. 설정값이 상한을 넘으면 `OnValidate`에서 자동 보정해 Launch 영구 미진입 구성을 방지한다. Relay는 AnimEvent 누락 시 `AnimEventSynth`로 동일 마커를 합성 큐잉한다.
 * **Boss Attack2 Landing Snap Rule**: `Windup/PreLaunch` 동안에는 `stepOffset`을 `0`으로 낮추고, 루트모션 Y를 차단한 뒤 `RaycastNonAlloc` 기반 Ground 스냅으로 목표 높이를 유지한다. `Launch` 프레임에서 ground lock을 해제하고 `stepOffset`을 원복한 뒤 루트모션 Y를 허용한다. `Land` 이벤트를 우선 기준으로 1회 스냅을 적용하고, 이벤트 누락 시에는 `landSnapNormalizedTime` 폴백으로 동일 스냅 경로를 보장한다.
@@ -515,7 +525,7 @@ classDiagram
 | **Boss Sensors** | ✅ Done | `IsTargetInDetectionRange`(XZ 거리 기반) 단일 규칙으로 Idle/Searching 전투 진입을 처리한다. 장애물 LOS 센서는 제거됨 |
 | **Boss Navigation** | ✅ Done | `MoveTo` (추적 이동) 및 `RotateTowards` (회전) 로직 + AoE 공중 연출 중 Locomotion 시각 잠금 가드 + `ChaseReengageBuffer` 기반 히스테리시스 추적 |
 | **Boss Visuals** | ✅ Done | 구조 분리 및 Dragon Asset(Animator/BlendTree) 통합 완료. `PlayFlyForward` 폴백을 비행 계열로 정리해 Walk 혼입 방지. |
-| **Boss Combat** | 🔃 progress | `Pattern 1`(Basic), `Pattern 2`(Lunge), `Pattern 3`(Projectile: Flame Attack + Homing + Vertical Follow + VFX create/hit + hitReturnDelay + postFireRecovery/exitNormalizedTime) 완료. 패턴별 공격 사거리 분리(`Basic/Lunge/Projectile/AoE`) 및 거리 기반 패턴 후보 필터링, 최대 사거리 기반 추적 히스테리시스 반영. Basic 사거리 기준점은 `basicAttackRangeOrigin`(기본 씬: `HeadDamageCasterPlace`)으로 분리되었고, Attack1의 editable range source는 `HeadDamageCaster.radius`로 단일화됐다. `BossController.basicAttackRange`는 인스펙터에서 숨기고 legacy fallback 값으로만 유지한다. Boss 공격 `DamageCaster`는 로직 계층에 두고, `HeadDamageCasterPlace`/`BodyDamageCasterPlace`를 `_castCenter` 앵커로 사용한다. Lunge는 루트모션 브리지(`OnAnimatorMove -> ApplyLungeRootMotion`) + 시작 방향 고정 경로를 사용하며, 피격 활성 구간은 인스펙터 `damageCastNormalizedWindow`로 start/end를 튜닝한다. Phase1에서는 Basic/Lunge 동시 충족 시 Basic 우선 규칙을 적용한다. `Pattern 4`(AoE)는 fully red active window 반경 판정 + circle당 target 1회 타격 규칙으로 진행 중이다(늦게 진입한 target 포함, invul ignore는 소비하지 않음). |
+| **Boss Combat** | 🔃 progress | `Pattern 1`(Basic), `Pattern 2`(Lunge), `Pattern 3`(Projectile: Flame Attack + Homing + Vertical Follow + VFX create/hit + hitReturnDelay + postFireRecovery/exitNormalizedTime) 완료. 패턴별 공격 사거리 분리(`Basic/Lunge/Projectile/AoE`) 및 거리 기반 패턴 후보 필터링, 최대 사거리 기반 추적 히스테리시스 반영. Basic 사거리 기준점은 `basicAttackRangeOrigin`(기본 씬: `HeadDamageCasterPlace`)으로 분리되었고, Attack1의 editable range source는 `HeadDamageCaster.radius`로 단일화됐다. `BossController.basicAttackRange`는 인스펙터에서 숨기고 legacy fallback 값으로만 유지한다. Attack1은 `BasicAttackSettings.readyDuration` + `readyNormalizedWindow`를 사용해 bite 준비 slice를 재생 시간 기준으로 튜닝하며, 준비 구간 동안 `HeadDamageCaster`를 닫고 준비 종료 후에만 판정을 연다. Boss 공격 `DamageCaster`는 로직 계층에 두고, `HeadDamageCasterPlace`/`BodyDamageCasterPlace`를 `_castCenter` 앵커로 사용한다. Lunge는 루트모션 브리지(`OnAnimatorMove -> ApplyLungeRootMotion`) + 시작 방향 고정 경로를 사용하며, 피격 활성 구간은 인스펙터 `damageCastNormalizedWindow`로 start/end를 튜닝한다. Phase1에서는 Basic/Lunge 동시 충족 시 Basic 우선 규칙을 적용한다. `Pattern 4`(AoE)는 fully red active window 반경 판정 + circle당 target 1회 타격 규칙으로 진행 중이다(늦게 진입한 target 포함, invul ignore는 소비하지 않음). |
 | **Attack2 PreLaunch Ground Lock** | 🔃 progress | `LungeAttackPattern` 구간 분기(`Windup/PreLaunch/Launch/Airborne/Land`) 및 `BossController` ground lock/stepOffset 제어, 마커 큐 누적/소비(`PreLaunchStart/Launch/Land`) + `normalizedTime` 폴백까지 코드 반영 완료. `launch/land` 정규화 시점은 `0.98` 상한으로 강제해 종료 전 Launch 미진입 구성을 차단하고, Relay의 `AnimEventSynth`로 이벤트 누락 시 동일 마커를 합성한다. 루트모션 적용은 Animator `deltaPosition` 기반 단일 추종을 유지한다. `[Attack2Landing]` 로그는 `MarkerPathWarn`, `GroundSnapMiss`, `GroundSnapSkipMaxDistance`, `RootMotionMove/RootMotionRelayProbe`, `SpatialProbe(player/boss/visual/red 좌표)`를 포함해 실패 원인/좌표 경로를 추적한다. 플레이어 쪽 `[Attack2PlayerY]` 로그도 추가돼 근접 피격 시 Y/grounded/충돌 플래그를 함께 추적한다. Unity 실플레이 회귀 검증(머리 탑승/발 꺼짐/착지 정렬)은 남아 있다. |
 | **Attack2 Inspector & Gizmo UX** | 🔃 progress | Attack2 `damageCastNormalizedWindow`가 기본 인스펙터에서 2핸들 게이지와 `Start/End` 숫자 필드로 노출된다. 판정 활성 시점 튜닝 UX는 반영됐고, broader Attack2 전용 timeline/gizmo 정리는 후속 작업으로 남아 있다. |
 | **Attack2 Repro Harness (Test Scene)** | ✅ Done | `GamePlayScene_TestResult` 로드 시 `BossAttack2ReproHarness`를 자동 생성해 플레이어를 보스 전방 재현 위치로 고정한다. 수동 착지지점 배치 없이 Attack2 위로 올라감 회귀를 반복 재현할 수 있다. |
