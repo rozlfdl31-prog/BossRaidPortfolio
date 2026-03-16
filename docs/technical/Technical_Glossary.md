@@ -41,9 +41,19 @@
 * **HUD 부트스트랩 바인딩**: `PlayerController.InitializeCombatHUD()`에서 HUD 참조/보스 `Health`를 초기 탐색한 뒤 `Initialize`와 이름 라벨 세팅까지 한 번에 수행하는 시작 절차.
 * **HP Fill 정규화 업데이트**: `HealthRatio`를 `Image.fillAmount`로 반영해 체력 UI를 갱신하는 방식. 수치 텍스트 갱신 없이도 이벤트 기반으로 즉시 동기화할 수 있다.
 * **HUD 가시성 토글**: `CombatHUDController.ShowHud(bool)`로 플레이어/보스 체력 UI와 이름 라벨, 데미지 피드백 표시를 일괄 On/Off 하는 제어 패턴.
-* **Title Scene**: 게임 시작 시점 전용 씬. `TitleSceneController`가 아무 키 입력을 감지해 전투 목적지(`GamePlay`)를 `SceneLoader`에 요청한다.
+* **Title Scene**: 게임 시작 시점 전용 씬. 현재 `TitleSceneController`가 버튼 기반 `Solo Play / Multi Play` 흐름과 Host/Client/Lobby 패널 전환을 관리하며, `TitleRuntimeRoot`를 Edit Mode에서도 재사용할 수 있도록 유지한다.
 * **Loading Scene**: 씬 전환 중 비동기 로드를 담당하는 중간 씬. `SceneLoader`가 목적지 씬을 예약하고 `LoadingSceneController`가 진행률 UI와 활성화 타이밍을 제어한다.
 * **Input Lock Duration (입력 잠금 시간)**: 타이틀 진입 직후의 잔존 키 입력으로 즉시 전환되는 문제를 막기 위한 짧은 대기 구간. 현재 `TitleSceneController`의 `_inputLockDuration`으로 제어한다.
+* **TitleMainPanel**: `TitleScene`의 첫 진입 패널. `Solo Play`, `Multi Play` 두 버튼만 노출한다.
+* **MultiplayerModePanel**: 멀티플레이 진입 후 `Host`, `Client`, `Back to Title` 분기를 고르는 패널.
+* **HostCreatePanel**: Host가 optional room title을 입력하고 `Create Room`을 누르는 패널. 제목이 비면 `join here 0000` 형식 auto title을 생성한다.
+* **ClientJoinPanel**: Client가 6자리 join code를 입력하는 패널. 형식이 틀리면 wrong key popup으로 되돌린다.
+* **LobbyPanel**: Host/Client가 공통으로 보는 멀티플레이 대기 패널. room title, join code, connected players, waiting text, host-only `Start`를 표시한다.
+* **WrongKeyPopup**: 잘못된 join code를 같은 UX로 묶어 보여주는 overlay popup. 기본 문구는 `Wrong key. Please type again.` 이다.
+* **Edit-Mode Title Preview (에디트 모드 타이틀 프리뷰)**: `TitleSceneController`가 `ExecuteAlways` 경로에서 `TitleRuntimeRoot`를 생성/재사용해, Play Mode에 들어가지 않아도 `TitleScene` 패널 배치와 앵커를 Unity Editor에서 바로 조정할 수 있게 하는 처리.
+* **Auto Room Title**: Host room title이 비어 있을 때 사용하는 기본 제목 규칙. 형식은 `join here 0000`이며 뒤 4자리는 랜덤 숫자다.
+* **Start Unlock Gate**: Host `Start` 버튼이 `2/2 connected` 직후 즉시 열리지 않고 안정 대기 후 열리도록 하는 게이트. 현재 UI 프로토타입에서는 2초 타이머로 표현한다.
+* **Strict Close**: 멀티플레이 흐름 중 create/join/start 실패 또는 `Back/Cancel` 발생 시 세션을 닫고 `TitleScene`으로 돌아가는 정리 규칙. 현재 구현은 UI 레벨 복귀만 반영했고 실제 서비스 정리는 후속 단계다.
 * **SimultaneousDeathTest (동시 사망 테스트 컴포넌트)**: `GamePlayScene_TestResult`에서 동일 프레임 사망을 재현하기 위해, `K` 입력 시 플레이어/보스 `Health.TakeDamage`를 같은 프레임에 호출하는 테스트 스크립트(`Assets/Scripts/Test/SimultaneousDeathTest.cs`).
 * **동시 사망 판정 우선순위 (GameManager)**: `GameManager.LateUpdate()`가 `_bossDead`를 먼저 검사해 결과를 확정하는 규칙. 플레이어와 보스가 동시에 사망하면 `Victory`를 반환한다.
 * **Magic String (매직 스트링)**: 코드 내에 직접 하드코딩된 문자열 리터럴. 오타 위험이 크므로 `const` 상수로 관리해야 함.

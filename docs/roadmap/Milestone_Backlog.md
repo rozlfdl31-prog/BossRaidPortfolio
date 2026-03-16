@@ -102,6 +102,27 @@
 - [x] 🟡**(개발, 버전관리) 메인 배포**: develop branch 내용 main에 커밋 및 푸시
 - [x] 🟡**(개발, 멀티플레이) 계획 쓰기**: 어떤 멀티플레이를 구현할 건지 계획 작성.
 
+#### 멀티플레이어
+[x] `TitleScene` 멀티플레이 UI 구조 설계 확정
+
+---
+
+### 7주차: 멀티플레이 구현
+
+#### 🚧 버그
+
+#### 멀티플레이어
+- [ ] NGO/UTP/Relay/Lobby 패키지 및 서비스 초기화
+
+---
+
+#### 멀티플레이어
+1. [x] `TitleScene` 멀티플레이 UI 구조 설계 확정
+2. [ ] NGO/UTP/Relay/Lobby 패키지 및 서비스 초기화
+3. [ ] Host/Client lobby create/join 흐름 구현
+4. [ ] 2인 gameplay scene spawn 동기화
+5. [ ] boss aggro + spectator + retry consensus 구현
+6. [ ] `System_Blueprint`와 `Technical_Glossary`에 확정 구현 결과 반영
 
 ---
 
