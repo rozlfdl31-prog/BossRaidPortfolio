@@ -444,6 +444,9 @@ MonoBehaviour:
   attackDamage: 4
   attackDuration: 1
   attackCooldown: 2
+  basicAttackSettings:
+    readyDuration: 1.1
+    readyNormalizedWindow: {x: 0, y: 0.3}
   _headDamageCaster: {fileID: 375716743}
   _lungeDamageCaster: {fileID: 1119454101}
   lungeAttackSettings:
@@ -496,13 +499,13 @@ MonoBehaviour:
       serializedVersion: 2
       m_Bits: 512
     fallbackProjectileHeight: 6
-  enableChase: 1
-  enableRotation: 1
+  enableChase: 0
+  enableRotation: 0
   enableBasicAttack: 1
-  enableLungeAttack: 1
-  enableProjectileAttack: 1
-  enableAoEAttack: 1
-  ignorePlayerCollision: 1
+  enableLungeAttack: 0
+  enableProjectileAttack: 0
+  enableAoEAttack: 0
+  ignorePlayerCollision: 0
   enableLungeRootMotionDebugLog: 0
   lungeRootMotionDebugLogInterval: 0.01
   showPhaseDebugLabel: 0
@@ -739,7 +742,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e63d09e61f26b4b4db8c3a27731f4051, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _radius: 4
+  _radius: 3
   _targetLayer:
     serializedVersion: 2
     m_Bits: 128
@@ -2281,7 +2284,7 @@ MonoBehaviour:
   rotationSmoothTime: 0.01
   targetHeight: 1.51
   followOffset: {x: 0, y: 2.35, z: -8.08}
-  minPitch: -40
+  minPitch: -15
   maxPitch: 75
   autoBehindAssist: 0
   assistMoveThreshold: 0.15
