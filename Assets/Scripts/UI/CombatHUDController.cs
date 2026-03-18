@@ -13,6 +13,8 @@ namespace Core.UI
     /// </summary>
     public class CombatHUDController : MonoBehaviour
     {
+        private const string PartnerHudPanelName = "PartnerHUD_Panel";
+
         [Header("플레이어 HUD")]
         [SerializeField] private Image _playerTorsoImage;
         [SerializeField] private Image _playerHpFill;
@@ -25,6 +27,9 @@ namespace Core.UI
         [FormerlySerializedAs("_bossHpText")]
         [SerializeField] private TMP_Text _bossNameText;
         [SerializeField] private string _bossNameLabel = "Dragon";
+
+        [Header("파트너 HUD")]
+        [SerializeField] private GameObject _partnerHudRoot;
 
         [Header("고정형 데미지 피드백")]
         [SerializeField] private TMP_Text _damageFeedbackText;
@@ -41,6 +46,8 @@ namespace Core.UI
         private bool _isHealthEventsBound;
         private Coroutine _feedbackRoutine;
         private Vector3 _damageFeedbackBaseScale = Vector3.one;
+        private bool _isHudVisible = true;
+        private bool _isPartnerHudVisible;
 
         public Health PlayerHealth => _playerHealth;
         public Health BossHealth => _bossHealth;
@@ -48,6 +55,8 @@ namespace Core.UI
         private void Awake()
         {
             ApplyNameLabels();
+            ResolvePartnerHudRoot();
+            ApplyPartnerHudVisibility();
 
             if (_damageFeedbackText != null)
             {
@@ -239,6 +248,16 @@ namespace Core.UI
         }
 
         /// <summary>
+        /// 파트너 HUD 표시 상태를 전환한다.
+        /// 실질적인 데이터 바인딩은 멀티플레이 gameplay sync 단계에서 확장한다.
+        /// </summary>
+        public void SetPartnerHudVisible(bool visible)
+        {
+            _isPartnerHudVisible = visible;
+            ApplyPartnerHudVisibility();
+        }
+
+        /// <summary>
         /// 고정 위치 데미지 피드백 텍스트를 표시한다.
         /// 적중 시에만 텍스트를 노출하고, 짧은 페이드 아웃을 적용한다.
         /// </summary>
@@ -274,6 +293,8 @@ namespace Core.UI
         /// </summary>
         public void ShowHud(bool visible)
         {
+            _isHudVisible = visible;
+
             if (_playerTorsoImage != null)
             {
                 _playerTorsoImage.gameObject.SetActive(visible);
@@ -299,6 +320,8 @@ namespace Core.UI
                 _bossNameText.gameObject.SetActive(visible);
             }
 
+            ApplyPartnerHudVisibility();
+
             if (!visible)
             {
                 HideDamageFeedbackImmediate();
@@ -316,6 +339,38 @@ namespace Core.UI
             {
                 _bossNameText.text = string.IsNullOrWhiteSpace(_bossNameLabel) ? "Dragon" : _bossNameLabel;
             }
+        }
+
+        private void ResolvePartnerHudRoot()
+        {
+            if (_partnerHudRoot != null)
+            {
+                return;
+            }
+
+            Transform[] childTransforms = GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < childTransforms.Length; i++)
+            {
+                Transform childTransform = childTransforms[i];
+                if (childTransform == null || !string.Equals(childTransform.name, PartnerHudPanelName, System.StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                _partnerHudRoot = childTransform.gameObject;
+                break;
+            }
+        }
+
+        private void ApplyPartnerHudVisibility()
+        {
+            ResolvePartnerHudRoot();
+            if (_partnerHudRoot == null)
+            {
+                return;
+            }
+
+            _partnerHudRoot.SetActive(_isHudVisible && _isPartnerHudVisible);
         }
 
         private IEnumerator PlayDamageFeedbackRoutine()
@@ -364,5 +419,6 @@ namespace Core.UI
             resetColor.a = 1f;
             _damageFeedbackText.color = resetColor;
         }
+
     }
 }
