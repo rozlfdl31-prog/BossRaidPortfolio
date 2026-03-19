@@ -389,6 +389,7 @@ classDiagram
 *   **Loading Orchestrator**: `Assets/Scripts/Common/LoadingSceneController.cs`
 *   **Result & Restart**: `Assets/Scripts/Common/GameManager.cs`
 *   **Multiplayer Bootstrap Owner**: `Assets/Scripts/Multiplayer/Bootstrap/MultiplayerServicesBootstrap.cs`
+*   **Multiplayer Session Owner**: `Assets/Scripts/Multiplayer/Services/MultiplayerSessionService.cs`
 *   **Multiplayer Title Driver**: `Assets/Scripts/Multiplayer/UI/MultiplayerTitleSceneDriver.cs`
 *   **Multiplayer Scene Path Rule**: `Assets/Scripts/Multiplayer/SceneFlow/MultiplayerScenePaths.cs`
 
@@ -439,6 +440,14 @@ classDiagram
         +PlayerId string
     }
 
+    class MultiplayerSessionService {
+        <<MonoBehaviour>>
+        +CreateHostSessionAsync(string)
+        +JoinClientSessionAsync(string)
+        +StartGameplayAsync()
+        +ShutdownSessionAsync()
+    }
+
     class MultiplayerScenePaths {
         <<Static>>
         +IsMultiplayerTitleScene(string) bool
@@ -456,13 +465,18 @@ classDiagram
     SceneLoader --> LoadingSceneController : reserves target
     LoadingSceneController ..> SceneLoader : consumes target/completes transition
     MultiplayerTitleSceneDriver ..> TitleSceneController : wraps duplicated title scene buttons
-    MultiplayerTitleSceneDriver ..> MultiplayerServicesBootstrap : ensures bootstrap
-    MultiplayerTitleSceneDriver ..> MultiplayerScenePaths : loads duplicated gameplay path
+    MultiplayerTitleSceneDriver ..> MultiplayerSessionService : delegates create/join/start owner
+    MultiplayerTitleSceneDriver ..> MultiplayerScenePaths : loads duplicated gameplay path for Solo Play
+    MultiplayerSessionService ..> MultiplayerServicesBootstrap : ensures bootstrap and UGS ready
+    MultiplayerSessionService ..> MultiplayerScenePaths : starts NGO synchronized gameplay load
     GameManager ..> SceneLoader : shares game flow context
 ```
 
 멀티플레이 duplicated title scene(`Assets/Scenes/mutiplayer/TitleScene.unity`)에서는 `MultiplayerTitleSceneRuntimeInstaller`가 runtime에만 `MultiplayerTitleSceneDriver`를 붙인다.
-이 driver는 `Create Room` / `Join` 전에 `MultiplayerServicesBootstrap`을 호출하고, `Solo Play` / Host `Start`는 common scene name 대신 duplicated scene path로 우회한다.
+이 driver는 `Create Room` / `Join` / Host `Start`를 `MultiplayerSessionService`로 위임하고, `Solo Play`만 common scene name 대신 duplicated gameplay scene path를 직접 로드한다.
+현재 `MultiplayerScenePaths.GamePlayScenePath`의 기본 target은 lightweight verify scene(`Assets/Scenes/mutiplayer/GamePlayScene_Verify.unity`)이며, full-art duplicate scene(`Assets/Scenes/mutiplayer/GamePlayScene.unity`)은 참조용으로 유지한다.
+Host `Start`는 service가 `LobbyActive -> StartingGameplay`, lobby `SessionState=Starting`, NGO synchronized scene load, fail cleanup/title return까지 owner로 처리한다. Session 7 strict cleanup에서는 `Closing` busy guard와 session-version guard를 추가해 cleanup 중 새 action과 stale async write를 막는다.
+fast multiplayer verify build는 `Assets/Editor/FastMultiplayerVerifyBuildRunner.cs`가 `TitleScene + GamePlayScene_Verify`만 직접 빌드하고, build 동안 `Assets/Map/Beautify/URP/Runtime/Resources`를 임시 제외한 뒤 자동 복구한다.
 
 ---
 
@@ -569,18 +583,18 @@ classDiagram
 ### 4.4. User Interface (UI)
 | Component | Note |
 | --- | --- |
-| **UI System** | 전투 HUD 배치 + `CombatHUDController` 연동 완료. `Health.OnDamageTaken/OnDeath` 이벤트로 플레이어/보스 HP Fill을 즉시 갱신하고, `DamageCaster.OnAttackWindowResolved` 결과를 `HIT + 피해량` 고정형 피드백(스케일 강조 후 짧은 페이드 아웃)으로 표시한다. 이름 라벨(`Player`, `Dragon`) 및 `ShowHud(bool)` 기반 전체 표시 제어를 포함한다. shared `Canvas.prefab`의 `PartnerHUD_Panel`은 기본적으로 숨기고, `PlayerController.InitializeCombatHUD()`가 `MultiplayerSessionService.HasActiveSession`이 true일 때만 `SetPartnerHudVisible(true)`로 연다. combo UI(`Text_Combo`)도 기본 hidden 상태를 유지하며, `AttackState.StartComboStep()`은 `PlayerController.SetPendingComboHudStep(step)`로 현재 단계만 준비하고, 실제 open은 `DamageCaster.OnAttackHitConfirmed` -> `PlayerController.ShowComboHud(step)` -> `CombatHUDController.ShowCombo(step)` 경로에서만 수행한다. `AttackState.Exit()` / `InitializeCombatHUD()` / `ShowHud(false)`는 `HideCombo()`로 stale combo UI를 정리한다. duplicated multiplayer title scene의 `Solo Play`도 duplicated multiplayer gameplay scene path로 들어갈 수 있으므로, partner HUD 표시 게이트는 scene path가 아니라 real session state를 truth source로 사용한다. current multiplayer gameplay scene(`Assets/Scenes/mutiplayer/GamePlayScene.unity`)은 promoted main gameplay scene content를 duplicate로 유지하며, `GameManager`는 scene binding이 비어 있어도 `GameOver_Panel` / `GameResult` text를 runtime에서 재탐색한다. |
-| **Title Multiplayer UI** | `TitleSceneController`가 기존 캔버스 위에 `TitleMainPanel / MultiplayerModePanel / HostCreatePanel / ClientJoinPanel / LobbyPanel / WrongKeyPopup`을 구성한다. main title scene의 UI 레이아웃은 그대로 두고, duplicated multiplayer title scene(`Assets/Scenes/mutiplayer/TitleScene.unity`)에서는 `MultiplayerTitleSceneRuntimeInstaller` + `MultiplayerTitleSceneDriver`가 runtime에만 붙는다. 이 driver는 Host `Create Room`과 Client `Join`을 모두 `MultiplayerSessionService`로 넘기고, service는 먼저 `MultiplayerServicesBootstrap` ready를 보장한 뒤 Host는 `Relay allocation -> join code -> Lobby create(metadata S1) -> NGO Host start`, Client는 `join code normalize -> Lobby query(S1) -> Lobby join -> Relay join -> NGO Client start`를 수행한다. 성공 시 `LobbyPanel`에는 real room title, real join code, real player count가 바인딩되고, wrong key는 `WrongKeyPopup`으로 되돌리며 그 외 실패와 `Cancel`은 strict cleanup 후 title로 돌아간다. duplicated multiplayer title scene manual Host smoke test에서는 `PlayerId ready`, `Host session started`, `Lobby heartbeat sent`, `Deleting lobby`, `Cleanup complete`까지 실제 로그로 확인됐다. `2/2` stable `Start` unlock 규칙은 아직 후속 작업이다. |
+| **UI System** | 전투 HUD 배치 + `CombatHUDController` 연동 완료. `Health.OnDamageTaken/OnDeath` 이벤트로 플레이어/보스 HP Fill을 즉시 갱신하고, `DamageCaster.OnAttackWindowResolved` 결과를 `HIT + 피해량` 고정형 피드백(스케일 강조 후 짧은 페이드 아웃)으로 표시한다. 이름 라벨(`Player`, `Dragon`) 및 `ShowHud(bool)` 기반 전체 표시 제어를 포함한다. shared `Canvas.prefab`의 `PartnerHUD_Panel`은 기본적으로 숨기고, `PlayerController.InitializeCombatHUD()`가 `MultiplayerSessionService.HasActiveSession`이 true일 때만 `SetPartnerHudVisible(true)`로 연다. combo UI(`Text_Combo`)도 기본 hidden 상태를 유지하며, `AttackState.StartComboStep()`은 `PlayerController.SetPendingComboHudStep(step)`로 현재 단계만 준비하고, 실제 open은 `DamageCaster.OnAttackHitConfirmed` -> `PlayerController.ShowComboHud(step)` -> `CombatHUDController.ShowCombo(step)` 경로에서만 수행한다. `AttackState.Exit()` / `InitializeCombatHUD()` / `ShowHud(false)`는 `HideCombo()`로 stale combo UI를 정리한다. duplicated multiplayer title scene의 `Solo Play`도 duplicated multiplayer gameplay scene path로 들어갈 수 있으므로, partner HUD 표시 게이트는 scene path가 아니라 real session state를 truth source로 사용한다. current multiplayer fast-check gameplay scene은 lightweight verify scene(`Assets/Scenes/mutiplayer/GamePlayScene_Verify.unity`)이고, 이 scene은 `Ground`, `Wall`, `Systems`, `ResultTestTrigger`, shared `Canvas.prefab`만 유지해 heavy background art 없이 Host/Client/Lobby/result flow를 검증한다. full-art duplicate scene(`Assets/Scenes/mutiplayer/GamePlayScene.unity`)은 별도 참조용으로 남겨 둔다. |
+| **Title Multiplayer UI** | `TitleSceneController`가 기존 캔버스 위에 `TitleMainPanel / MultiplayerModePanel / HostCreatePanel / ClientJoinPanel / LobbyPanel / WrongKeyPopup`을 구성한다. main title scene의 UI 레이아웃은 그대로 두고, duplicated multiplayer title scene(`Assets/Scenes/mutiplayer/TitleScene.unity`)에서는 `MultiplayerTitleSceneRuntimeInstaller` + `MultiplayerTitleSceneDriver`가 runtime에만 붙는다. 이 driver는 Host `Create Room`, Client `Join`, Host `Start`를 모두 `MultiplayerSessionService`로 넘기고, service는 먼저 `MultiplayerServicesBootstrap` ready를 보장한 뒤 Host는 `Relay allocation -> join code -> Lobby create(metadata S1) -> NGO Host start`, Client는 `join code normalize -> Lobby query(S1) -> Lobby join -> Relay join -> NGO Client start`, Host `Start`는 `StartGameplayAsync()` -> `StartingGameplay` -> NGO synchronized scene load를 수행한다. 성공 시 `LobbyPanel`에는 real room title, real join code, real player count가 바인딩되고, wrong key는 `WrongKeyPopup`으로 되돌리며 그 외 실패와 `Cancel`은 strict cleanup 후 title로 돌아간다. `LobbyActive` 구간에서는 host heartbeat, `2s` poll fallback, host-owned `SessionState(Waiting/Ready)` metadata sync가 유지되며, `Start`는 Host에게만 보이고 `2/2 connected + NGO stable + 2초 유지`일 때만 활성화된다. Session 7 strict cleanup hardening 이후에는 driver가 `Closing` state를 구독해 cleanup 시작 즉시 추가 버튼 입력을 막고, service는 session-version guard로 stale refresh/heartbeat/session-state update 결과를 무시한다. multiplayer fast-check 기본 path는 `Assets/Scenes/mutiplayer/GamePlayScene_Verify.unity`이고, gameplay start 시 driver는 `Starting...` label + button lock만 담당하며 fail 시 snapshot rebind 또는 title return popup으로 복구한다. 2026-03-19 manual smoke 기준으로 both peers는 same lobby/session과 same gameplay verify scene enter까지 확인됐고, player model selection / boss gameplay shared state는 아직 후속 sync 범위로 남아 있다. |
 
 ### 4.5. Game Logic & Flow
 | Component | Note |
 | --- | --- |
-| **Game Loop** | `TitleSceneController`가 `Solo Play / Multi Play` 버튼 기반 시작 흐름을 관리하고, main scene 기준으로는 `SceneLoader` + `LoadingSceneController` 경유 전투 진입/`GameManager` 결과 처리까지 연결한다. duplicated multiplayer title scene에서는 `MultiplayerScenePaths` 기반 path load를 사용해 `Assets/Scenes/mutiplayer/GamePlayScene.unity`로 직접 이동한다. Host create, Client join, lobby cancel/back까지는 real session flow가 연결됐고, 다음 단계는 lobby active 안정화와 gameplay start consensus다. |
+| **Game Loop** | `TitleSceneController`가 `Solo Play / Multi Play` 버튼 기반 시작 흐름을 관리하고, main scene 기준으로는 `SceneLoader` + `LoadingSceneController` 경유 전투 진입/`GameManager` 결과 처리까지 연결한다. duplicated multiplayer title scene에서는 `Solo Play`만 `MultiplayerScenePaths` 기반 path load를 사용해 lightweight verify scene(`Assets/Scenes/mutiplayer/GamePlayScene_Verify.unity`)으로 직접 이동한다. multiplayer Host `Start`는 `MultiplayerSessionService.StartGameplayAsync()`가 `LobbyActive -> StartingGameplay`, lobby `SessionState=Starting`, NGO `NetworkSceneManager.LoadScene(...)`, `OnLoadEventCompleted` 완료 판정까지 owner로 처리한다. `15s` timeout, mid-start disconnect, scene sync fail은 strict cleanup 후 duplicated multiplayer title scene으로 복귀한다. Session 7 strict cleanup hardening은 `Back/Cancel/fail/disconnect`를 같은 close order로 묶고, cleanup이 완료되기 전에는 new create/join/start를 허용하지 않는다. fast multiplayer verify build는 `Assets/Editor/FastMultiplayerVerifyBuildRunner.cs`가 `TitleScene + GamePlayScene_Verify`를 직접 빌드하고, build 동안 Beautify runtime `Resources`를 잠시 제외해 `Hidden/Kronnect/Beautify` compile 부담을 줄인다. 2026-03-19 manual smoke에서 both peers same-scene enter는 통과했고, current known gap은 shared player model selection과 boss/gameplay state sync다. Session 6 gameplay start는 여기까지 구현됐고, 다음 단계는 `2P spawn`, `boss aggro`, `spectator`, `retry consensus`다. |
 
 ### 4.6. Network Architecture
 | Component | Note |
 | --- | --- |
-| **Netcode Prep** | `Session 1 - Package Baseline`, `Session 2 - Services Bootstrap`, `Session 3 - Host Create`, `Session 4 - Client Join`까지 구현됐다. `MultiplayerServicesBootstrap`은 `UnityServices.InitializeAsync()` + anonymous sign-in + `PlayerId` 확보를 one-time init으로 묶고, `MultiplayerRuntimeRoot`는 `NetworkManager` + `UnityTransport` singleton owner를 맡는다. `MultiplayerSessionService`는 Host create 시 `Relay allocation -> join code -> Lobby create(metadata S1) -> UnityTransport host relay configure -> NGO StartHost()`, Client join 시 `join code normalize -> QueryLobbiesAsync(S1) -> JoinLobbyByIdAsync -> Relay JoinAllocationAsync -> UnityTransport client relay configure -> NGO StartClient()` 순서를 실행하며, wrong-key/fatal failure 구분, host heartbeat, strict shutdown, 그리고 Wire package가 있을 때만 활성화되는 optional lobby event subscription까지 관리한다. Session 3 Host create / cancel은 duplicated multiplayer title scene manual smoke test로 실제 검증됐고, 다음 단계는 Lobby active 안정화와 `Start` unlock rule이다. |
+| **Netcode Prep** | `Session 1 - Package Baseline`, `Session 2 - Services Bootstrap`, `Session 3 - Host Create`, `Session 4 - Client Join`, `Session 5 - Lobby Active`, `Session 6 - gameplay start`, `Session 7 - strict cleanup`까지 구현됐다. `MultiplayerServicesBootstrap`은 `UnityServices.InitializeAsync()` + anonymous sign-in + `PlayerId` 확보를 one-time init으로 묶고, `MultiplayerRuntimeRoot`는 `NetworkManager` + `UnityTransport` singleton owner를 맡는다. `MultiplayerSessionService`는 Host create 시 `Relay allocation -> join code -> Lobby create(metadata S1) -> UnityTransport host relay configure -> NGO StartHost()`, Client join 시 `join code normalize -> QueryLobbiesAsync(S1) -> JoinLobbyByIdAsync -> Relay JoinAllocationAsync -> UnityTransport client relay configure -> NGO StartClient()` 순서를 실행하며, `LobbyActive` 동안 host heartbeat, `2s` poll fallback refresh, host-owned `SessionState(Waiting/Ready)` metadata sync, `2/2 + NGO stable + 2초` Start unlock gate를 관리한다. Host `StartGameplayAsync()`는 `StartingGameplay` state, host-owned `SessionState(Waiting/Ready/Starting)` sync, NGO `SceneManager.LoadScene(...)`, `OnLoadEventCompleted` completion gate, `15s` timeout / client disconnect fatal cleanup / title return mapping까지 owner로 관리한다. Session 7 strict cleanup hardening에서는 `Closing`을 real busy state로 취급하고, create/join/cleanup start마다 session version을 올려 old refresh/heartbeat/session-state update/lobby event callback 결과를 무효화한다. current fast multiplayer default target은 lightweight verify scene(`Assets/Scenes/mutiplayer/GamePlayScene_Verify.unity`)이고, `LoadingSceneController`를 재사용하지 않는 direct gameplay scene sync로 Session 6를 닫았다. manual smoke 기준으로 same session + same-scene enter는 검증됐지만, in-game shared model selection과 boss/combat state sync는 아직 미구현이다. |
 
 ---
 

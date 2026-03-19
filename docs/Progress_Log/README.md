@@ -8,6 +8,9 @@
 
 ## 🧩 로그 작성 규칙 (신규 엔트리부터 적용)
 - 신규 엔트리는 체크리스트 업데이트와 맥락노트를 분리해서 작성한다.
+- 같은 날짜 로그에 topic이 2개 이상이면 한 블록에 섞어 쓰지 않는다.
+- multiple topic 로그는 `Topic 1`, `Topic 2`처럼 주제를 먼저 나누고, 각 topic 아래에 `오늘 반영한 작업`, `체크리스트 업데이트`, `맥락노트`, `기술적 고려`를 별도로 작성한다.
+- 서로 다른 topic의 발견/수정/판단 근거는 같은 bullet 묶음에 합치지 않는다.
 - 기술적 고려에는 아래 3항목을 고정으로 포함한다.
   - **무엇을 발견했는가**
   - **무엇을 수정했는가**
@@ -24,7 +27,8 @@
 - [TEMPLATE.md](./TEMPLATE.md)
 
 ## 📅 날짜별 로그
-- [2026-03-18.md](./2026-03-18.md) - multiplayer test gameplay scene artist map/UI merge + partner HUD multiplayer-only gate + combo HUD hit-confirm gate + main gameplay scene promotion + multiplayer folder route restore
+- [2026-03-19.md](./2026-03-19.md) - Session 6 gameplay start 세션 구현 + multiplayer verify scene + fast verify build runner + manual smoke validation + Session 7 strict cleanup hardening
+- [2026-03-18.md](./2026-03-18.md) - multiplayer test gameplay scene artist map/UI merge + partner HUD multiplayer-only gate + combo HUD hit-confirm gate + multiplayer lobby active session + host 2초 stable Start unlock gate
 - [2026-03-17.md](./2026-03-17.md) - Client join 런타임 + Lobby Events compile 안정화
 - [2026-03-16.md](./2026-03-16.md)
 - [2026-03-13.md](./2026-03-13.md)
