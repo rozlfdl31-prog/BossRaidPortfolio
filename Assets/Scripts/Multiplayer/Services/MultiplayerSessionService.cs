@@ -7,6 +7,7 @@ using Unity.Services.Lobbies.Models;
 using Unity.Services.Relay;
 using Unity.Services.Relay.Models;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace Core.Multiplayer
 {
@@ -58,9 +59,25 @@ namespace Core.Multiplayer
         private const string SessionStateDataKey = "SessionState";
         private const string ModeDataKey = "Mode";
         private const string WaitingStateValue = "Waiting";
+        private const string ReadyStateValue = "Ready";
+        private const string StartingStateValue = "Starting";
         private const string BossRaidCoopModeValue = "BossRaidCoop";
         private const string WrongKeyMessage = "Wrong key. Please type again.";
+        private const string LobbyClosedMessage = "Lobby closed. Returning to title.";
+        private const string DisconnectedFromLobbyMessage = "Disconnected from lobby.";
+        private const string DisconnectedFromHostMessage = "Disconnected from host.";
+        private const string ClientDisconnectedDuringGameplayStartMessage = "Client disconnected during gameplay start.";
+        private const string WaitingForOtherPlayerStatusText = "Waiting for other player...";
+        private const string HostStabilizingStatusText = "2/2 connected. Waiting for stable connection...";
+        private const string ClientWaitingForHostStatusText = "2/2 connected. Waiting for host...";
+        private const string ReadyToStartStatusText = "Ready to start";
+        private const string HostCanStartStatusText = "Host can start now";
+        private const string StartingGameStatusText = "Starting game...";
+        private const int MaxLobbyPlayerCount = 2;
+        private const int GameplayStartTimeoutMilliseconds = 15000;
         private const float LobbyHeartbeatIntervalSeconds = 15f;
+        private const float LobbyPollIntervalSeconds = 2f;
+        private const float HostStartUnlockStableDurationSeconds = 2f;
 
         private static MultiplayerSessionService _instance;
 
@@ -79,7 +96,14 @@ namespace Core.Multiplayer
         private bool _isHost;
         private bool _heartbeatEnabled;
         private bool _heartbeatRequestInFlight;
+        private bool _lobbySessionStateUpdateInFlight;
+        private bool _hostStartUnlocked;
+        private bool _sceneLoadCallbacksRegistered;
+        private int _sessionVersion;
         private float _heartbeatTimer;
+        private float _lobbyPollTimer;
+        private float _hostStartStableTimer;
+        private TaskCompletionSource<bool> _gameplayStartTaskSource;
 
         public static bool HasInstance => _instance != null;
         public static MultiplayerSessionService Instance => GetOrCreateInstance();
@@ -88,7 +112,8 @@ namespace Core.Multiplayer
         public MultiplayerSessionSnapshot CurrentSnapshot => _currentSnapshot;
         public string LastErrorMessage => _lastErrorMessage;
         public MultiplayerSessionFailureKind LastFailureKind => _lastFailureKind;
-        public bool IsBusy => _currentOperationTask != null && !_currentOperationTask.IsCompleted;
+        public bool IsBusy => _state == MultiplayerSessionState.Closing
+                              || (_currentOperationTask != null && !_currentOperationTask.IsCompleted);
         public bool HasActiveSession => _currentSnapshot.HasActiveSession || IsNetworkSessionAlive();
 
         public event Action<MultiplayerSessionState> StateChanged;
@@ -127,19 +152,15 @@ namespace Core.Multiplayer
 
         private void Update()
         {
-            if (!_heartbeatEnabled || _heartbeatRequestInFlight || string.IsNullOrEmpty(_currentLobby?.Id) || _state != MultiplayerSessionState.LobbyActive)
+            if (!IsLobbyTrackedState(_state))
             {
                 return;
             }
 
-            _heartbeatTimer += Time.deltaTime;
-            if (_heartbeatTimer < LobbyHeartbeatIntervalSeconds)
-            {
-                return;
-            }
-
-            _heartbeatTimer = 0f;
-            SendLobbyHeartbeatAsync();
+            UpdateLobbyHeartbeat();
+            UpdateLobbyPollFallback();
+            UpdateHostStartUnlockGate(Time.deltaTime);
+            SyncHostLobbySessionStateIfNeeded();
         }
 
         private void OnDestroy()
@@ -169,7 +190,8 @@ namespace Core.Multiplayer
                 throw new InvalidOperationException("A multiplayer session is already active.");
             }
 
-            _currentOperationTask = CreateHostSessionInternalAsync(roomTitle);
+            int sessionVersion = AdvanceSessionVersion();
+            _currentOperationTask = CreateHostSessionInternalAsync(roomTitle, sessionVersion);
             return _currentOperationTask;
         }
 
@@ -185,7 +207,8 @@ namespace Core.Multiplayer
                 throw new InvalidOperationException("A multiplayer session is already active.");
             }
 
-            _currentOperationTask = JoinClientSessionInternalAsync(joinCode);
+            int sessionVersion = AdvanceSessionVersion();
+            _currentOperationTask = JoinClientSessionInternalAsync(joinCode, sessionVersion);
             return _currentOperationTask;
         }
 
@@ -193,16 +216,45 @@ namespace Core.Multiplayer
         {
             if (IsBusy)
             {
-                return _currentOperationTask;
+                return _currentOperationTask ?? Task.CompletedTask;
             }
 
             _lastErrorMessage = string.Empty;
             _lastFailureKind = MultiplayerSessionFailureKind.None;
+            AdvanceSessionVersion();
             _currentOperationTask = ShutdownSessionInternalAsync();
             return _currentOperationTask;
         }
 
-        private async Task CreateHostSessionInternalAsync(string roomTitle)
+        public Task StartGameplayAsync()
+        {
+            if (IsBusy)
+            {
+                throw new InvalidOperationException("Multiplayer session service is busy.");
+            }
+
+            if (!_isHost)
+            {
+                throw new InvalidOperationException("Only the host can start gameplay.");
+            }
+
+            if (_state != MultiplayerSessionState.LobbyActive)
+            {
+                throw new InvalidOperationException("Gameplay start is only available from the lobby state.");
+            }
+
+            if (!ResolveCanStart(ResolveConnectedPlayerCount()))
+            {
+                throw new InvalidOperationException("Gameplay start is not ready yet.");
+            }
+
+            _lastErrorMessage = string.Empty;
+            _lastFailureKind = MultiplayerSessionFailureKind.None;
+            _currentOperationTask = StartGameplayInternalAsync(_sessionVersion);
+            return _currentOperationTask;
+        }
+
+        private async Task CreateHostSessionInternalAsync(string roomTitle, int sessionVersion)
         {
             _lastErrorMessage = string.Empty;
             _lastFailureKind = MultiplayerSessionFailureKind.None;
@@ -252,11 +304,16 @@ namespace Core.Multiplayer
                 _heartbeatEnabled = true;
                 _heartbeatRequestInFlight = false;
                 _heartbeatTimer = 0f;
+                _lobbyPollTimer = 0f;
+                _hostStartStableTimer = 0f;
+                _hostStartUnlocked = false;
+                _lobbySessionStateUpdateInFlight = false;
 
-                await SubscribeToLobbyEventsAsync(lobby.Id);
+                await SubscribeToLobbyEventsAsync(lobby.Id, sessionVersion);
 
                 SetState(MultiplayerSessionState.LobbyActive);
-                PublishSnapshot(BuildCurrentSnapshot());
+                UpdateHostStartUnlockGate(0f);
+                TryPublishCurrentSnapshot();
 
                 Debug.Log($"MultiplayerSessionService: Host session started. LobbyId={lobby.Id}, JoinCode={relayJoinCode}");
             }
@@ -265,6 +322,7 @@ namespace Core.Multiplayer
                 _lastFailureKind = MultiplayerSessionFailureKind.Fatal;
                 _lastErrorMessage = $"Host create failed: {ex.Message}";
                 Debug.LogError($"MultiplayerSessionService: {_lastErrorMessage}");
+                AdvanceSessionVersion();
                 await ShutdownSessionInternalAsync();
                 throw;
             }
@@ -274,7 +332,7 @@ namespace Core.Multiplayer
             }
         }
 
-        private async Task JoinClientSessionInternalAsync(string rawJoinCode)
+        private async Task JoinClientSessionInternalAsync(string rawJoinCode, int sessionVersion)
         {
             _lastErrorMessage = string.Empty;
             _lastFailureKind = MultiplayerSessionFailureKind.None;
@@ -339,11 +397,16 @@ namespace Core.Multiplayer
                 _heartbeatEnabled = false;
                 _heartbeatRequestInFlight = false;
                 _heartbeatTimer = 0f;
+                _lobbyPollTimer = 0f;
+                _hostStartStableTimer = 0f;
+                _hostStartUnlocked = false;
+                _lobbySessionStateUpdateInFlight = false;
 
-                await SubscribeToLobbyEventsAsync(_currentLobby.Id);
+                await SubscribeToLobbyEventsAsync(_currentLobby.Id, sessionVersion);
 
                 SetState(MultiplayerSessionState.LobbyActive);
-                PublishSnapshot(BuildCurrentSnapshot());
+                UpdateHostStartUnlockGate(0f);
+                TryPublishCurrentSnapshot();
 
                 Debug.Log($"MultiplayerSessionService: Client session started. LobbyId={_currentLobby.Id}, JoinCode={joinCode}");
             }
@@ -362,11 +425,92 @@ namespace Core.Multiplayer
                     Debug.LogError($"MultiplayerSessionService: {_lastErrorMessage}");
                 }
 
+                AdvanceSessionVersion();
                 await ShutdownSessionInternalAsync();
                 throw;
             }
             finally
             {
+                _currentOperationTask = null;
+            }
+        }
+
+        private async Task StartGameplayInternalAsync(int sessionVersion)
+        {
+            try
+            {
+                _runtimeRoot = MultiplayerRuntimeRoot.Instance;
+                _runtimeRoot.EnsureConfigured();
+
+                NetworkManager networkManager = _runtimeRoot.NetworkManager;
+                if (networkManager == null)
+                {
+                    throw new InvalidOperationException("NetworkManager is missing before gameplay start.");
+                }
+
+                if (!networkManager.IsServer || !networkManager.IsListening || networkManager.ShutdownInProgress)
+                {
+                    throw new InvalidOperationException("NGO host is not in a valid state for gameplay start.");
+                }
+
+                if (networkManager.SceneManager == null)
+                {
+                    throw new InvalidOperationException("NetworkSceneManager is missing.");
+                }
+
+                _hostStartUnlocked = false;
+                _hostStartStableTimer = 0f;
+                SetState(MultiplayerSessionState.StartingGameplay);
+                TryPublishCurrentSnapshot();
+
+                RegisterSceneLoadCallbacks();
+                _gameplayStartTaskSource = new TaskCompletionSource<bool>();
+                _ = UpdateHostLobbySessionStateAsync(StartingStateValue, sessionVersion);
+
+                SceneEventProgressStatus loadStatus = networkManager.SceneManager.LoadScene(
+                    MultiplayerScenePaths.GamePlayScenePath,
+                    LoadSceneMode.Single);
+
+                if (loadStatus != SceneEventProgressStatus.Started)
+                {
+                    throw new InvalidOperationException($"NGO gameplay scene load failed to start. Status={loadStatus}");
+                }
+
+                Task completedTask = await Task.WhenAny(
+                    _gameplayStartTaskSource.Task,
+                    Task.Delay(GameplayStartTimeoutMilliseconds));
+
+                if (completedTask != _gameplayStartTaskSource.Task)
+                {
+                    throw new TimeoutException("Gameplay start timed out.");
+                }
+
+                await _gameplayStartTaskSource.Task;
+                Debug.Log("MultiplayerSessionService: Gameplay scene sync completed.");
+            }
+            catch (Exception ex)
+            {
+                _lastFailureKind = MultiplayerSessionFailureKind.Fatal;
+                _lastErrorMessage = $"Gameplay start failed: {ex.Message}";
+                Debug.LogError($"MultiplayerSessionService: {_lastErrorMessage}");
+
+                if (_state != MultiplayerSessionState.Closing && _state != MultiplayerSessionState.Closed)
+                {
+                    if (IsSessionVersionCurrent(sessionVersion))
+                    {
+                        AdvanceSessionVersion();
+                    }
+
+                    await ShutdownSessionInternalAsync();
+                    ReturnToMultiplayerTitleSceneIfNeeded();
+                }
+
+                throw;
+            }
+            finally
+            {
+                UnregisterSceneLoadCallbacks();
+                ClearGameplayStartTracking();
                 _currentOperationTask = null;
             }
         }
@@ -451,17 +595,17 @@ namespace Core.Multiplayer
             throw new InvalidOperationException($"Relay join allocation does not include a {RelayConnectionType} endpoint.");
         }
 
-        private Task SubscribeToLobbyEventsAsync(string lobbyId)
+        private Task SubscribeToLobbyEventsAsync(string lobbyId, int sessionVersion)
         {
 #if UGS_BETA_LOBBY_EVENTS && UGS_LOBBY_EVENTS
-            return SubscribeToLobbyEventsInternalAsync(lobbyId);
+            return SubscribeToLobbyEventsInternalAsync(lobbyId, sessionVersion);
 #else
             return Task.CompletedTask;
 #endif
         }
 
 #if UGS_BETA_LOBBY_EVENTS && UGS_LOBBY_EVENTS
-        private async Task SubscribeToLobbyEventsInternalAsync(string lobbyId)
+        private async Task SubscribeToLobbyEventsInternalAsync(string lobbyId, int sessionVersion)
         {
             if (string.IsNullOrEmpty(lobbyId))
             {
@@ -469,16 +613,58 @@ namespace Core.Multiplayer
             }
 
             LobbyEventCallbacks callbacks = new LobbyEventCallbacks();
-            callbacks.PlayerJoined += _ => RequestLobbyRefresh();
-            callbacks.PlayerLeft += _ => RequestLobbyRefresh();
-            callbacks.DataChanged += _ => RequestLobbyRefresh();
-            callbacks.DataAdded += _ => RequestLobbyRefresh();
-            callbacks.DataRemoved += _ => RequestLobbyRefresh();
-            callbacks.LobbyDeleted += () => BeginFatalShutdown("Lobby closed. Returning to title.");
-            callbacks.KickedFromLobby += () => BeginFatalShutdown("Disconnected from lobby.");
+            callbacks.PlayerJoined += _ =>
+            {
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    RequestLobbyRefresh();
+                }
+            };
+            callbacks.PlayerLeft += _ =>
+            {
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    RequestLobbyRefresh();
+                }
+            };
+            callbacks.DataChanged += _ =>
+            {
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    RequestLobbyRefresh();
+                }
+            };
+            callbacks.DataAdded += _ =>
+            {
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    RequestLobbyRefresh();
+                }
+            };
+            callbacks.DataRemoved += _ =>
+            {
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    RequestLobbyRefresh();
+                }
+            };
+            callbacks.LobbyDeleted += () =>
+            {
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    BeginFatalShutdown("Lobby closed. Returning to title.");
+                }
+            };
+            callbacks.KickedFromLobby += () =>
+            {
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    BeginFatalShutdown("Disconnected from lobby.");
+                }
+            };
             callbacks.LobbyEventConnectionStateChanged += state =>
             {
-                if (state == LobbyEventConnectionState.Error)
+                if (state == LobbyEventConnectionState.Error && IsSessionVersionCurrent(sessionVersion))
                 {
                     Debug.LogWarning("MultiplayerSessionService: Lobby event connection entered Error state.");
                 }
@@ -490,7 +676,7 @@ namespace Core.Multiplayer
 
         private void RequestLobbyRefresh()
         {
-            if (_state != MultiplayerSessionState.LobbyActive || string.IsNullOrEmpty(_currentLobby?.Id))
+            if (!IsLobbyTrackedState(_state) || string.IsNullOrEmpty(_currentLobby?.Id))
             {
                 return;
             }
@@ -500,20 +686,39 @@ namespace Core.Multiplayer
                 return;
             }
 
-            _refreshLobbyTask = RefreshLobbyAsync();
+            _refreshLobbyTask = RefreshLobbyAsync(_sessionVersion);
         }
 
-        private async Task RefreshLobbyAsync()
+        private async Task RefreshLobbyAsync(int sessionVersion)
         {
             try
             {
-                _currentLobby = await LobbyService.Instance.GetLobbyAsync(_currentLobby.Id);
-                PublishSnapshot(BuildCurrentSnapshot());
+                Lobby refreshedLobby = await LobbyService.Instance.GetLobbyAsync(_currentLobby.Id);
+                if (!IsSessionVersionCurrent(sessionVersion) || !IsLobbyTrackedState(_state))
+                {
+                    return;
+                }
+
+                _currentLobby = refreshedLobby;
+                UpdateHostStartUnlockGate(0f);
+                TryPublishCurrentSnapshot();
             }
             catch (Exception ex)
             {
-                if (_state == MultiplayerSessionState.Closing)
+                if (!IsSessionVersionCurrent(sessionVersion) || _state == MultiplayerSessionState.Closing || _state == MultiplayerSessionState.Closed)
                 {
+                    return;
+                }
+
+                if (!_isHost && IsLobbyMembershipFailure(ex))
+                {
+                    BeginFatalShutdown(DisconnectedFromLobbyMessage);
+                    return;
+                }
+
+                if (IsLobbyClosedFailure(ex))
+                {
+                    BeginFatalShutdown(LobbyClosedMessage);
                     return;
                 }
 
@@ -521,7 +726,10 @@ namespace Core.Multiplayer
             }
             finally
             {
-                _refreshLobbyTask = null;
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    _refreshLobbyTask = null;
+                }
             }
         }
 
@@ -538,6 +746,18 @@ namespace Core.Multiplayer
             _runtimeRoot.NetworkManager.OnClientDisconnectCallback += HandleNetworkClientDisconnected;
         }
 
+        private void RegisterSceneLoadCallbacks()
+        {
+            if (_sceneLoadCallbacksRegistered || _runtimeRoot == null || _runtimeRoot.NetworkManager == null || _runtimeRoot.NetworkManager.SceneManager == null)
+            {
+                return;
+            }
+
+            _runtimeRoot.NetworkManager.SceneManager.OnLoadEventCompleted -= HandleSceneLoadEventCompleted;
+            _runtimeRoot.NetworkManager.SceneManager.OnLoadEventCompleted += HandleSceneLoadEventCompleted;
+            _sceneLoadCallbacksRegistered = true;
+        }
+
         private void UnregisterNetworkCallbacks()
         {
             if (_runtimeRoot == null || _runtimeRoot.NetworkManager == null)
@@ -549,6 +769,18 @@ namespace Core.Multiplayer
             _runtimeRoot.NetworkManager.OnClientDisconnectCallback -= HandleNetworkClientDisconnected;
         }
 
+        private void UnregisterSceneLoadCallbacks()
+        {
+            if (!_sceneLoadCallbacksRegistered || _runtimeRoot == null || _runtimeRoot.NetworkManager == null || _runtimeRoot.NetworkManager.SceneManager == null)
+            {
+                _sceneLoadCallbacksRegistered = false;
+                return;
+            }
+
+            _runtimeRoot.NetworkManager.SceneManager.OnLoadEventCompleted -= HandleSceneLoadEventCompleted;
+            _sceneLoadCallbacksRegistered = false;
+        }
+
         private void HandleNetworkClientConnected(ulong clientId)
         {
             if (_state != MultiplayerSessionState.LobbyActive)
@@ -556,7 +788,8 @@ namespace Core.Multiplayer
                 return;
             }
 
-            PublishSnapshot(BuildCurrentSnapshot());
+            UpdateHostStartUnlockGate(0f);
+            TryPublishCurrentSnapshot();
             if (clientId != NetworkManager.ServerClientId)
             {
                 RequestLobbyRefresh();
@@ -565,27 +798,76 @@ namespace Core.Multiplayer
 
         private void HandleNetworkClientDisconnected(ulong clientId)
         {
-            if (_state != MultiplayerSessionState.LobbyActive)
+            if (!IsLobbyTrackedState(_state))
             {
                 return;
             }
 
-            PublishSnapshot(BuildCurrentSnapshot());
+            NetworkManager networkManager = _runtimeRoot != null ? _runtimeRoot.NetworkManager : null;
+            if (!_isHost && networkManager != null && clientId == networkManager.LocalClientId)
+            {
+                BeginFatalShutdown(DisconnectedFromHostMessage);
+                return;
+            }
+
+            if (_state == MultiplayerSessionState.StartingGameplay)
+            {
+                if (_isHost && clientId != NetworkManager.ServerClientId)
+                {
+                    FailPendingGameplayStart(ClientDisconnectedDuringGameplayStartMessage);
+                }
+
+                return;
+            }
+
+            UpdateHostStartUnlockGate(0f);
+            TryPublishCurrentSnapshot();
             if (clientId != NetworkManager.ServerClientId)
             {
                 RequestLobbyRefresh();
             }
         }
 
+        private void HandleSceneLoadEventCompleted(string sceneName, LoadSceneMode loadSceneMode, List<ulong> clientsCompleted, List<ulong> clientsTimedOut)
+        {
+            if (_state != MultiplayerSessionState.StartingGameplay || _gameplayStartTaskSource == null)
+            {
+                return;
+            }
+
+            if (!string.Equals(sceneName, MultiplayerScenePaths.GamePlaySceneName, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            if (loadSceneMode != LoadSceneMode.Single)
+            {
+                return;
+            }
+
+            if (clientsTimedOut != null && clientsTimedOut.Count > 0)
+            {
+                FailPendingGameplayStart("Gameplay start timed out.");
+                return;
+            }
+
+            int completedCount = clientsCompleted != null ? clientsCompleted.Count : 0;
+            if (completedCount < MaxLobbyPlayerCount)
+            {
+                FailPendingGameplayStart("Gameplay start completed with missing clients.");
+                return;
+            }
+
+            _gameplayStartTaskSource.TrySetResult(true);
+        }
+
         private MultiplayerSessionSnapshot BuildCurrentSnapshot()
         {
             int connectedPlayerCount = ResolveConnectedPlayerCount();
+            bool canStart = ResolveCanStart(connectedPlayerCount);
             string roomTitle = _currentLobby != null ? _currentLobby.Name : string.Empty;
             string joinCode = TryGetLobbyDataValue(RelayJoinCodeDataKey);
-
-            string statusText = connectedPlayerCount >= 2
-                ? "2/2 connected"
-                : "Waiting for other player...";
+            string statusText = ResolveLobbyStatusText(connectedPlayerCount, canStart);
 
             return new MultiplayerSessionSnapshot(
                 hasActiveSession: !string.IsNullOrEmpty(_currentLobby?.Id),
@@ -594,20 +876,60 @@ namespace Core.Multiplayer
                 connectedPlayerCount: connectedPlayerCount,
                 lobbyStatusText: statusText,
                 isHost: _isHost,
-                canStart: false);
+                canStart: canStart);
         }
 
         private int ResolveConnectedPlayerCount()
         {
             int lobbyPlayerCount = _currentLobby != null && _currentLobby.Players != null ? _currentLobby.Players.Count : 0;
-            int networkPlayerCount = 0;
+            int minimumPlayerCount = !string.IsNullOrEmpty(_currentLobby?.Id) ? 1 : 0;
+            NetworkManager networkManager = _runtimeRoot != null ? _runtimeRoot.NetworkManager : null;
 
-            if (_runtimeRoot != null && _runtimeRoot.NetworkManager != null && _runtimeRoot.NetworkManager.IsServer)
+            if (_isHost && networkManager != null && networkManager.IsServer && networkManager.IsListening && !networkManager.ShutdownInProgress)
             {
-                networkPlayerCount = _runtimeRoot.NetworkManager.ConnectedClientsIds.Count;
+                return Mathf.Clamp(Mathf.Max(networkManager.ConnectedClientsIds.Count, minimumPlayerCount), 0, MaxLobbyPlayerCount);
             }
 
-            return Mathf.Max(Mathf.Max(lobbyPlayerCount, networkPlayerCount), _isHost && !string.IsNullOrEmpty(_currentLobby?.Id) ? 1 : 0);
+            return Mathf.Clamp(Mathf.Max(lobbyPlayerCount, minimumPlayerCount), 0, MaxLobbyPlayerCount);
+        }
+
+        private bool ResolveCanStart(int connectedPlayerCount)
+        {
+            return _isHost
+                   && connectedPlayerCount == MaxLobbyPlayerCount
+                   && _hostStartUnlocked
+                   && IsHostNetworkConnectionStable();
+        }
+
+        private string ResolveLobbyStatusText(int connectedPlayerCount, bool canStart)
+        {
+            if (_state == MultiplayerSessionState.StartingGameplay)
+            {
+                return StartingGameStatusText;
+            }
+
+            string sessionStateValue = TryGetLobbyDataValue(SessionStateDataKey);
+            if (string.Equals(sessionStateValue, StartingStateValue, StringComparison.Ordinal))
+            {
+                return StartingGameStatusText;
+            }
+
+            if (connectedPlayerCount < MaxLobbyPlayerCount)
+            {
+                return WaitingForOtherPlayerStatusText;
+            }
+
+            if (_isHost)
+            {
+                return canStart ? ReadyToStartStatusText : HostStabilizingStatusText;
+            }
+
+            if (string.Equals(sessionStateValue, ReadyStateValue, StringComparison.Ordinal))
+            {
+                return HostCanStartStatusText;
+            }
+
+            return ClientWaitingForHostStatusText;
         }
 
         private string TryGetLobbyDataValue(string key)
@@ -628,6 +950,17 @@ namespace Core.Multiplayer
             SnapshotChanged?.Invoke(_currentSnapshot);
         }
 
+        private void TryPublishCurrentSnapshot()
+        {
+            MultiplayerSessionSnapshot snapshot = BuildCurrentSnapshot();
+            if (AreSnapshotsEqual(_currentSnapshot, snapshot))
+            {
+                return;
+            }
+
+            PublishSnapshot(snapshot);
+        }
+
         private void SetState(MultiplayerSessionState nextState)
         {
             if (_state == nextState)
@@ -641,26 +974,41 @@ namespace Core.Multiplayer
 
         private void BeginFatalShutdown(string message)
         {
-            if (_state == MultiplayerSessionState.Closing)
+            if (_state == MultiplayerSessionState.Closing || _state == MultiplayerSessionState.Closed)
             {
+                return;
+            }
+
+            if (IsBusy)
+            {
+                if (_state == MultiplayerSessionState.StartingGameplay && _gameplayStartTaskSource != null)
+                {
+                    FailPendingGameplayStart(message);
+                }
+
                 return;
             }
 
             _lastFailureKind = MultiplayerSessionFailureKind.Fatal;
             _lastErrorMessage = message;
             Debug.LogError($"MultiplayerSessionService: {message}");
-            _ = HandleFatalShutdownAsync(message);
+            AdvanceSessionVersion();
+            _currentOperationTask = HandleFatalShutdownAsync(message);
         }
 
         private async Task HandleFatalShutdownAsync(string message)
         {
             await ShutdownSessionInternalAsync();
+            ReturnToMultiplayerTitleSceneIfNeeded();
             FatalErrorOccurred?.Invoke(message);
         }
 
-        private async void SendLobbyHeartbeatAsync()
+        private async void SendLobbyHeartbeatAsync(int sessionVersion)
         {
-            if (_heartbeatRequestInFlight || string.IsNullOrEmpty(_currentLobby?.Id))
+            if (_heartbeatRequestInFlight
+                || string.IsNullOrEmpty(_currentLobby?.Id)
+                || !IsSessionVersionCurrent(sessionVersion)
+                || !IsLobbyTrackedState(_state))
             {
                 return;
             }
@@ -674,11 +1022,171 @@ namespace Core.Multiplayer
             }
             catch (Exception ex)
             {
+                if (!IsSessionVersionCurrent(sessionVersion) || _state == MultiplayerSessionState.Closing || _state == MultiplayerSessionState.Closed)
+                {
+                    return;
+                }
+
                 BeginFatalShutdown($"Lobby heartbeat failed: {ex.Message}");
             }
             finally
             {
-                _heartbeatRequestInFlight = false;
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    _heartbeatRequestInFlight = false;
+                }
+            }
+        }
+
+        private void UpdateLobbyHeartbeat()
+        {
+            if (!_heartbeatEnabled || _heartbeatRequestInFlight || string.IsNullOrEmpty(_currentLobby?.Id))
+            {
+                return;
+            }
+
+            _heartbeatTimer += Time.deltaTime;
+            if (_heartbeatTimer < LobbyHeartbeatIntervalSeconds)
+            {
+                return;
+            }
+
+            _heartbeatTimer = 0f;
+            SendLobbyHeartbeatAsync(_sessionVersion);
+        }
+
+        private void UpdateLobbyPollFallback()
+        {
+            if (string.IsNullOrEmpty(_currentLobby?.Id))
+            {
+                return;
+            }
+
+            _lobbyPollTimer += Time.deltaTime;
+            if (_lobbyPollTimer < LobbyPollIntervalSeconds)
+            {
+                return;
+            }
+
+            _lobbyPollTimer = 0f;
+            RequestLobbyRefresh();
+        }
+
+        private void UpdateHostStartUnlockGate(float deltaTime)
+        {
+            if (!_isHost)
+            {
+                _hostStartStableTimer = 0f;
+                _hostStartUnlocked = false;
+                return;
+            }
+
+            bool shouldKeepCounting = _state == MultiplayerSessionState.LobbyActive
+                                      && !string.IsNullOrEmpty(_currentLobby?.Id)
+                                      && ResolveConnectedPlayerCount() == MaxLobbyPlayerCount
+                                      && IsHostNetworkConnectionStable();
+
+            if (!shouldKeepCounting)
+            {
+                bool wasUnlocked = _hostStartUnlocked;
+                _hostStartStableTimer = 0f;
+                _hostStartUnlocked = false;
+                if (wasUnlocked)
+                {
+                    TryPublishCurrentSnapshot();
+                }
+
+                return;
+            }
+
+            if (_hostStartUnlocked)
+            {
+                return;
+            }
+
+            _hostStartStableTimer = Mathf.Min(HostStartUnlockStableDurationSeconds, _hostStartStableTimer + deltaTime);
+            if (_hostStartStableTimer < HostStartUnlockStableDurationSeconds)
+            {
+                return;
+            }
+
+            _hostStartUnlocked = true;
+            TryPublishCurrentSnapshot();
+        }
+
+        private void SyncHostLobbySessionStateIfNeeded()
+        {
+            if (!_isHost || !IsLobbyTrackedState(_state) || string.IsNullOrEmpty(_currentLobby?.Id) || _lobbySessionStateUpdateInFlight)
+            {
+                return;
+            }
+
+            string desiredSessionStateValue = ResolveHostLobbySessionStateValue();
+            string currentSessionStateValue = TryGetLobbyDataValue(SessionStateDataKey);
+            if (string.Equals(currentSessionStateValue, desiredSessionStateValue, StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _ = UpdateHostLobbySessionStateAsync(desiredSessionStateValue, _sessionVersion);
+        }
+
+        private async Task UpdateHostLobbySessionStateAsync(string desiredSessionStateValue, int sessionVersion)
+        {
+            if (_lobbySessionStateUpdateInFlight
+                || !_isHost
+                || !IsLobbyTrackedState(_state)
+                || string.IsNullOrEmpty(_currentLobby?.Id)
+                || !IsSessionVersionCurrent(sessionVersion))
+            {
+                return;
+            }
+
+            _lobbySessionStateUpdateInFlight = true;
+
+            try
+            {
+                Dictionary<string, DataObject> data = _currentLobby.Data != null
+                    ? new Dictionary<string, DataObject>(_currentLobby.Data)
+                    : new Dictionary<string, DataObject>();
+                data[SessionStateDataKey] = new DataObject(DataObject.VisibilityOptions.Public, desiredSessionStateValue);
+
+                Lobby updatedLobby = await LobbyService.Instance.UpdateLobbyAsync(
+                    _currentLobby.Id,
+                    new UpdateLobbyOptions
+                    {
+                        Data = data
+                    });
+
+                if (!IsSessionVersionCurrent(sessionVersion) || !IsLobbyTrackedState(_state))
+                {
+                    return;
+                }
+
+                _currentLobby = updatedLobby;
+                TryPublishCurrentSnapshot();
+            }
+            catch (Exception ex)
+            {
+                if (!IsSessionVersionCurrent(sessionVersion) || _state == MultiplayerSessionState.Closing || _state == MultiplayerSessionState.Closed)
+                {
+                    return;
+                }
+
+                if (IsLobbyClosedFailure(ex))
+                {
+                    BeginFatalShutdown(LobbyClosedMessage);
+                    return;
+                }
+
+                Debug.LogWarning($"MultiplayerSessionService: Lobby state update failed. {ex.Message}");
+            }
+            finally
+            {
+                if (IsSessionVersionCurrent(sessionVersion))
+                {
+                    _lobbySessionStateUpdateInFlight = false;
+                }
             }
         }
 
@@ -688,6 +1196,8 @@ namespace Core.Multiplayer
 
             _heartbeatEnabled = false;
             _heartbeatTimer = 0f;
+            UnregisterSceneLoadCallbacks();
+            ClearGameplayStartTracking();
 
             await UnsubscribeLobbyEventsSafeAsync();
             await DeleteOrLeaveLobbySafeAsync();
@@ -792,8 +1302,36 @@ namespace Core.Multiplayer
             _currentLobby = null;
             _isHost = false;
             _localPlayerId = string.Empty;
+            _refreshLobbyTask = null;
             _heartbeatEnabled = false;
             _heartbeatRequestInFlight = false;
+            _lobbySessionStateUpdateInFlight = false;
+            _hostStartUnlocked = false;
+            _sceneLoadCallbacksRegistered = false;
+            _heartbeatTimer = 0f;
+            _lobbyPollTimer = 0f;
+            _hostStartStableTimer = 0f;
+            _gameplayStartTaskSource = null;
+        }
+
+        private int AdvanceSessionVersion()
+        {
+            unchecked
+            {
+                _sessionVersion++;
+            }
+
+            if (_sessionVersion == 0)
+            {
+                _sessionVersion = 1;
+            }
+
+            return _sessionVersion;
+        }
+
+        private bool IsSessionVersionCurrent(int sessionVersion)
+        {
+            return sessionVersion != 0 && sessionVersion == _sessionVersion;
         }
 
         private static string NormalizeJoinCode(string rawJoinCode)
@@ -849,6 +1387,48 @@ namespace Core.Multiplayer
             return false;
         }
 
+        private static bool IsLobbyClosedFailure(Exception exception)
+        {
+            if (exception is not LobbyServiceException lobbyException)
+            {
+                return false;
+            }
+
+            return lobbyException.Reason == LobbyExceptionReason.EntityNotFound
+                   || lobbyException.Reason == LobbyExceptionReason.Forbidden;
+        }
+
+        private static bool IsLobbyMembershipFailure(Exception exception)
+        {
+            return exception is LobbyServiceException lobbyException
+                   && lobbyException.Reason == LobbyExceptionReason.PlayerNotFound;
+        }
+
+        private bool IsHostNetworkConnectionStable()
+        {
+            if (!_isHost || _runtimeRoot == null || _runtimeRoot.NetworkManager == null)
+            {
+                return false;
+            }
+
+            NetworkManager networkManager = _runtimeRoot.NetworkManager;
+            return networkManager.IsServer
+                   && networkManager.IsClient
+                   && networkManager.IsListening
+                   && !networkManager.ShutdownInProgress
+                   && networkManager.ConnectedClientsIds.Count == MaxLobbyPlayerCount;
+        }
+
+        private string ResolveHostLobbySessionStateValue()
+        {
+            if (_state == MultiplayerSessionState.StartingGameplay)
+            {
+                return StartingStateValue;
+            }
+
+            return _hostStartUnlocked ? ReadyStateValue : WaitingStateValue;
+        }
+
         private bool IsNetworkSessionAlive()
         {
             return _runtimeRoot != null
@@ -867,6 +1447,48 @@ namespace Core.Multiplayer
             {
                 throw new InvalidOperationException("NetworkManager is already running or shutting down.");
             }
+        }
+
+        private static void ReturnToMultiplayerTitleSceneIfNeeded()
+        {
+            Scene activeScene = SceneManager.GetActiveScene();
+            if (!MultiplayerScenePaths.IsMultiplayerTitleScene(activeScene.path))
+            {
+                SceneManager.LoadScene(MultiplayerScenePaths.TitleScenePath);
+            }
+        }
+
+        private static bool AreSnapshotsEqual(MultiplayerSessionSnapshot left, MultiplayerSessionSnapshot right)
+        {
+            return left.HasActiveSession == right.HasActiveSession
+                   && left.ConnectedPlayerCount == right.ConnectedPlayerCount
+                   && left.IsHost == right.IsHost
+                   && left.CanStart == right.CanStart
+                   && string.Equals(left.RoomTitle, right.RoomTitle, StringComparison.Ordinal)
+                   && string.Equals(left.JoinCode, right.JoinCode, StringComparison.Ordinal)
+                   && string.Equals(left.LobbyStatusText, right.LobbyStatusText, StringComparison.Ordinal);
+        }
+
+        private void FailPendingGameplayStart(string message)
+        {
+            if (_gameplayStartTaskSource != null && !_gameplayStartTaskSource.Task.IsCompleted)
+            {
+                _gameplayStartTaskSource.TrySetException(new InvalidOperationException(message));
+                return;
+            }
+
+            BeginFatalShutdown(message);
+        }
+
+        private void ClearGameplayStartTracking()
+        {
+            _gameplayStartTaskSource = null;
+        }
+
+        private static bool IsLobbyTrackedState(MultiplayerSessionState state)
+        {
+            return state == MultiplayerSessionState.LobbyActive
+                   || state == MultiplayerSessionState.StartingGameplay;
         }
     }
 }

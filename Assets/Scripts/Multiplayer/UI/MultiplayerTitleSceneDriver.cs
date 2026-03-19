@@ -30,6 +30,7 @@ namespace Core.Multiplayer
         private TMP_Text _soloPlayButtonLabel;
         private TMP_Text _createRoomButtonLabel;
         private TMP_Text _joinRoomButtonLabel;
+        private TMP_Text _startButtonLabel;
         private TMP_Text _lobbyExitButtonLabel;
 
         private bool _isBusy;
@@ -54,6 +55,7 @@ namespace Core.Multiplayer
                 return;
             }
 
+            MultiplayerSessionService.Instance.StateChanged += HandleSessionStateChanged;
             MultiplayerSessionService.Instance.SnapshotChanged += HandleSessionSnapshotChanged;
             MultiplayerSessionService.Instance.FatalErrorOccurred += HandleFatalError;
 
@@ -64,6 +66,7 @@ namespace Core.Multiplayer
             RebindButton(_lobbyExitButton, HandleLobbyExitSelectedAsync);
 
             ApplySessionSnapshot(MultiplayerSessionService.Instance.CurrentSnapshot);
+            HandleSessionStateChanged(MultiplayerSessionService.Instance.State);
         }
 
         private void OnDestroy()
@@ -73,6 +76,7 @@ namespace Core.Multiplayer
                 return;
             }
 
+            MultiplayerSessionService.Instance.StateChanged -= HandleSessionStateChanged;
             MultiplayerSessionService.Instance.SnapshotChanged -= HandleSessionSnapshotChanged;
             MultiplayerSessionService.Instance.FatalErrorOccurred -= HandleFatalError;
         }
@@ -113,6 +117,7 @@ namespace Core.Multiplayer
             _soloPlayButtonLabel = ResolveButtonLabel(_soloPlayButton);
             _createRoomButtonLabel = ResolveButtonLabel(_createRoomButton);
             _joinRoomButtonLabel = ResolveButtonLabel(_joinRoomButton);
+            _startButtonLabel = ResolveButtonLabel(_startButton);
             _lobbyExitButtonLabel = ResolveButtonLabel(_lobbyExitButton);
 
             bool hasAllButtons = _soloPlayButton != null
@@ -123,6 +128,7 @@ namespace Core.Multiplayer
                                  && _soloPlayButtonLabel != null
                                  && _createRoomButtonLabel != null
                                  && _joinRoomButtonLabel != null
+                                 && _startButtonLabel != null
                                  && _lobbyExitButtonLabel != null;
 
             if (!hasAllButtons)
@@ -296,7 +302,7 @@ namespace Core.Multiplayer
             SceneManager.LoadScene(MultiplayerScenePaths.GamePlayScenePath);
         }
 
-        private void HandleStartSelected()
+        private async void HandleStartSelected()
         {
             if (_isBusy || !_titleSceneController.CanAcceptMultiplayerMenuAction())
             {
@@ -308,8 +314,44 @@ namespace Core.Multiplayer
                 return;
             }
 
-            _titleSceneController.MarkSceneTransitionRequestedForMultiplayer();
-            SceneManager.LoadScene(MultiplayerScenePaths.GamePlayScenePath);
+            _isBusy = true;
+            CacheAndLockSceneButtons();
+            SetLabel(_startButtonLabel, "Starting...");
+
+            MultiplayerSessionService sessionService = MultiplayerSessionService.Instance;
+
+            try
+            {
+                await sessionService.StartGameplayAsync();
+            }
+            catch (Exception)
+            {
+                if (this == null || !_titleSceneController)
+                {
+                    return;
+                }
+
+                RestoreSceneButtons();
+
+                if (!sessionService.HasActiveSession)
+                {
+                    _titleSceneController.ReturnToMainPanelFromMultiplayer();
+                }
+                else
+                {
+                    ApplySessionSnapshot(sessionService.CurrentSnapshot);
+                }
+
+                ShowSessionErrorPopup("Gameplay start failed. Please try again.");
+            }
+            finally
+            {
+                if (this != null)
+                {
+                    SetLabel(_startButtonLabel, "Start");
+                    _isBusy = false;
+                }
+            }
         }
 
         private void HandleSessionSnapshotChanged(MultiplayerSessionSnapshot snapshot)
@@ -317,12 +359,21 @@ namespace Core.Multiplayer
             ApplySessionSnapshot(snapshot);
         }
 
+        private void HandleSessionStateChanged(MultiplayerSessionState state)
+        {
+            if (state != MultiplayerSessionState.Closing)
+            {
+                return;
+            }
+
+            _isBusy = true;
+            SetLabel(_lobbyExitButtonLabel, "Closing...");
+        }
+
         private void HandleFatalError(string message)
         {
             RestoreSceneButtons();
-            SetLabel(_createRoomButtonLabel, "Create Room");
-            SetLabel(_joinRoomButtonLabel, "Join");
-            SetLabel(_lobbyExitButtonLabel, "Cancel");
+            ResetActionLabels();
             _isBusy = false;
 
             if (_titleSceneController == null)
@@ -402,6 +453,14 @@ namespace Core.Multiplayer
             }
 
             _titleSceneController.ShowMultiplayerPopup(errorMessage);
+        }
+
+        private void ResetActionLabels()
+        {
+            SetLabel(_createRoomButtonLabel, "Create Room");
+            SetLabel(_joinRoomButtonLabel, "Join");
+            SetLabel(_startButtonLabel, "Start");
+            SetLabel(_lobbyExitButtonLabel, "Cancel");
         }
 
         private static void SetLabel(TMP_Text label, string value)
