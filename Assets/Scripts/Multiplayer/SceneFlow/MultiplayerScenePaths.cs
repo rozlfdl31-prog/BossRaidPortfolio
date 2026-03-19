@@ -5,9 +5,14 @@ namespace Core.Multiplayer
     public static class MultiplayerScenePaths
     {
         public const string SceneFolderPath = "Assets/Scenes/mutiplayer";
+        public const string VerifyGamePlaySceneName = "GamePlayScene_Verify";
+        public const string FullGamePlaySceneName = "GamePlayScene";
         public const string TitleScenePath = SceneFolderPath + "/TitleScene.unity";
         public const string LoadingScenePath = SceneFolderPath + "/LoadingScene.unity";
-        public const string GamePlayScenePath = SceneFolderPath + "/GamePlayScene.unity";
+        public const string VerifyGamePlayScenePath = SceneFolderPath + "/GamePlayScene_Verify.unity";
+        public const string FullGamePlayScenePath = SceneFolderPath + "/GamePlayScene.unity";
+        public const string GamePlaySceneName = VerifyGamePlaySceneName;
+        public const string GamePlayScenePath = VerifyGamePlayScenePath;
 
         public static bool IsMultiplayerScene(string scenePath)
         {
