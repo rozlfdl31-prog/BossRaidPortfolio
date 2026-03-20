@@ -547,7 +547,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 29f8d572df6abc242b243fcd31b4d868, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _maxHealth: 600
+  _maxHealth: 700
   _currentHealth: 0
   _isInvincible: 0
 --- !u!1001 &292796850
@@ -4118,7 +4118,7 @@ MonoBehaviour:
     duration: 0.5
     comboInputWindow: 1.06
     cancelStartTime: 0.3
-  - damage: 15
+  - damage: 20
     duration: 0.6
     comboInputWindow: 0.4
     cancelStartTime: 0.3
