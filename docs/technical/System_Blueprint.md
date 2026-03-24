@@ -516,7 +516,7 @@ classDiagram
 | **Object Pooling** | `BossProjectilePool` 기반 투사체 재사용(Prewarm/Max/Expand) 구현 완료. |
 | **Third-Person Camera Module** | `Assets/Scripts/Camera/ThirdPersonCameraController.cs`를 메인 카메라 측 모듈로 분리해 카메라 설정을 카메라 오브젝트로 이동했다. |
 | **Package Baseline** | Unity 2022.3 기준 shared `main` baseline은 `URP/VFX 14.0.12`, `TMP`, `2D Sprite`, `FBX`만 유지하고, UGS/NGO/Relay/Lobby package set은 `feature/multiplayer` 브랜치에서만 소유한다. |
-| **External Asset Distribution Policy** | 런타임 실사용 에셋만 Git/LFS로 선별 추적한다. 기준은 GUID 의존성 폐쇄(씬/프리팹/설정의 직접+간접 참조)이며, `Assets/TextMesh Pro` 루트와 미사용 서드파티 리소스는 제외한다. Unity 참조 안정성을 위해 에셋과 `.meta`를 쌍으로 버전관리한다. |
+| **External Asset Distribution Policy** | 프로젝트 소유 코드/씬/프리팹/설정만 Git으로 추적하고, 서드파티 imported pack은 Google Drive 배포본을 기준선으로 관리한다. 현재 외부 배포 pack은 `Assets/ApocalypticEnvironment`, `Assets/CombatGirlsCharacterPack`, `Assets/Fantasy Skybox FREE`, `Assets/FourEvilDragonsPBR`, `Assets/Hits Effects FREE`, `Assets/InfographicElements_UI`, `Assets/Lunar Landscape 3D`, `Assets/Map`, `Assets/PixPlays`, `Assets/UNI VFX`다. Unity 참조 안정성을 위해 Drive 배포본도 원본 에셋과 `.meta`를 같은 상대 경로로 함께 보관한다. |
 
 ### 4.2. Player System
 | Component | Note |

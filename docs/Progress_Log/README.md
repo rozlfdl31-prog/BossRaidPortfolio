@@ -24,7 +24,7 @@
 - [TEMPLATE.md](./TEMPLATE.md)
 
 ## 📅 날짜별 로그
-- [2026-03-24.md](./2026-03-24.md) - main multiplayer runtime/package cleanup + shared branch baseline 복구 + branch ownership 문서 동기화
+- [2026-03-24.md](./2026-03-24.md) - main multiplayer runtime/package cleanup + shared branch baseline 복구 + branch ownership 문서 동기화 + third-party imported pack Google Drive cutover
 - [2026-03-18.md](./2026-03-18.md) - multiplayer test gameplay scene artist map/UI merge + partner HUD multiplayer-only gate + combo HUD hit-confirm gate + main gameplay scene promotion + multiplayer folder route restore
 - [2026-03-17.md](./2026-03-17.md) - Client join 런타임 + Lobby Events compile 안정화
 - [2026-03-16.md](./2026-03-16.md)
