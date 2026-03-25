@@ -63,7 +63,7 @@ MonoBehaviour:
     m_Value: 0
   sharpenIntensity:
     m_OverrideState: 1
-    m_Value: 15.1
+    m_Value: 13.3
   sharpenDepthThreshold:
     m_OverrideState: 0
     m_Value: 0.035
@@ -121,13 +121,13 @@ MonoBehaviour:
     m_Value: 1
   saturate:
     m_OverrideState: 1
-    m_Value: -0.89
+    m_Value: 1.36
   brightness:
     m_OverrideState: 1
-    m_Value: 1.05
+    m_Value: 0.96
   contrast:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 0.978
   daltonize:
     m_OverrideState: 1
     m_Value: 2
@@ -136,7 +136,7 @@ MonoBehaviour:
     m_Value: 0
   tintColor:
     m_OverrideState: 1
-    m_Value: {r: 0.4089309, g: 0.35230508, b: 0.8207547, a: 0.2901961}
+    m_Value: {r: 0.46118155, g: 0.35294122, b: 0.81960785, a: 0.2901961}
   colorTempBlend:
     m_OverrideState: 0
     m_Value: 0
@@ -155,7 +155,7 @@ MonoBehaviour:
     dimension: 1
   bloomIntensity:
     m_OverrideState: 1
-    m_Value: 1
+    m_Value: 3
   bloomThreshold:
     m_OverrideState: 1
     m_Value: 1.5
@@ -444,7 +444,7 @@ MonoBehaviour:
     m_Value: 1
   depthOfFieldFocusMode:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 2
   depthOfFieldAutofocusMinDistance:
     m_OverrideState: 1
     m_Value: 0
@@ -485,10 +485,10 @@ MonoBehaviour:
     m_Value: 0
   depthOfFieldFocalLength:
     m_OverrideState: 1
-    m_Value: 0.075
+    m_Value: 0.14
   depthOfFieldAperture:
     m_OverrideState: 1
-    m_Value: 2.8
+    m_Value: 3
   depthOfFieldFocalLengthReal:
     m_OverrideState: 0
     m_Value: 50
@@ -616,7 +616,7 @@ MonoBehaviour:
     m_Value: 0.504
   vignettingOuterRing:
     m_OverrideState: 1
-    m_Value: 0.325
+    m_Value: 0.44
   vignettingInnerRing:
     m_OverrideState: 1
     m_Value: 0.925
@@ -668,18 +668,18 @@ MonoBehaviour:
     m_Value: 0.5
   outlineMinDepthThreshold:
     m_OverrideState: 1
-    m_Value: 0
+    m_Value: 0.01
   outlineSaturationDiffThreshold:
     m_OverrideState: 1
-    m_Value: 0.25
+    m_Value: 0.5
   outlineCustomize:
-    m_OverrideState: 0
+    m_OverrideState: 1
     m_Value: 0
   outlineLayerMask:
-    m_OverrideState: 0
+    m_OverrideState: 1
     m_Value:
       serializedVersion: 2
-      m_Bits: 4294967295
+      m_Bits: 448
   outlineStageParameter:
     m_OverrideState: 0
     m_Value: 0
