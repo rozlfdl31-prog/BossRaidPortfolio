@@ -653,7 +653,7 @@ MonoBehaviour:
     m_Value: 1
   outlineColor:
     m_OverrideState: 1
-    m_Value: {r: 0.0028744102, g: 0.0028744102, b: 0.0028744102, a: 1}
+    m_Value: {r: 0.011612245, g: 0.011612245, b: 0.012286487, a: 1}
   outlineTechnique:
     m_OverrideState: 1
     m_Value: 0
